@@ -35,6 +35,7 @@ export default function LiveLearningAssistant({
 }: LiveLearningAssistantProps) {
   const [isActive, setIsActive] = useState(false);
   const [originalText, setOriginalText] = useState('');
+  const [speechText, setSpeechText] = useState(''); // Separate state for speech input
   const [translatedText, setTranslatedText] = useState('');
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [gifs, setGifs] = useState<Map<string, Gif[]>>(new Map());
@@ -47,6 +48,7 @@ export default function LiveLearningAssistant({
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const cumulativeTextRef = useRef('');
+  const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check browser support
   useEffect(() => {
@@ -61,6 +63,17 @@ export default function LiveLearningAssistant({
     setIsRequestingPermission(true);
     setError(null);
     try {
+      // Check if microphone is available
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasAudioInput = devices.some(device => device.kind === 'audioinput');
+      
+      if (!hasAudioInput) {
+        setIsRequestingPermission(false);
+        setError('No microphone found. You can still type or paste text to translate.');
+        setIsActive(false);
+        return false;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       // Stop the stream immediately - we just needed permission
       stream.getTracks().forEach(track => track.stop());
@@ -69,9 +82,11 @@ export default function LiveLearningAssistant({
     } catch (err: any) {
       setIsRequestingPermission(false);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setError('Microphone permission denied. Please allow microphone access in your browser settings and refresh the page.');
+        setError('Microphone permission denied. You can still type or paste text below.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setError('No microphone found. You can still type or paste text to translate.');
       } else {
-        setError(`Failed to access microphone: ${err.message}`);
+        setError('Microphone unavailable. You can still type or paste text below.');
       }
       setIsActive(false);
       return false;
@@ -139,7 +154,7 @@ export default function LiveLearningAssistant({
 
       const fullText = finalText + interimText;
       cumulativeTextRef.current = cumulativeTextRef.current + ' ' + finalText;
-      setOriginalText(cumulativeTextRef.current.trim() + ' ' + interimText);
+      setSpeechText(cumulativeTextRef.current.trim() + ' ' + interimText);
 
       // Real-time translation for final results
       if (finalText.trim()) {
@@ -227,8 +242,10 @@ export default function LiveLearningAssistant({
   }, [isActive, sourceLang, targetLang, isSupported]);
 
   const translateInRealTime = async (text: string) => {
-    if (!text.trim() || sourceLang === targetLang) {
-      setTranslatedText((prev) => prev + ' ' + text);
+    if (!text.trim()) return;
+    
+    if (sourceLang === targetLang) {
+      setTranslatedText(text);
       return;
     }
 
@@ -238,7 +255,7 @@ export default function LiveLearningAssistant({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
+          text: text.trim(),
           sourceLang,
           targetLang,
           includeGlossary: false,
@@ -247,13 +264,15 @@ export default function LiveLearningAssistant({
 
       if (response.ok) {
         const data = await response.json();
-        setTranslatedText((prev) => {
-          const updated = prev ? `${prev} ${data.translation}` : data.translation;
-          return updated;
-        });
+        setTranslatedText(data.translation || text);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Translation failed:', errorData);
+        setError('Translation failed. Please try again.');
       }
     } catch (error) {
       console.error('Translation error:', error);
+      setError('Translation service unavailable. Please check your connection.');
     } finally {
       setIsTranslating(false);
     }
@@ -314,7 +333,7 @@ export default function LiveLearningAssistant({
     const note: Note = {
       id: Date.now().toString(),
       timestamp: new Date(),
-      original: originalText || currentNote,
+      original: originalText || speechText || currentNote,
       translated: translatedText,
       concepts: concepts.map(c => c.name),
     };
@@ -347,7 +366,7 @@ export default function LiveLearningAssistant({
       // Starting - clear previous state
       setError(null);
       cumulativeTextRef.current = '';
-      setOriginalText('');
+      setSpeechText('');
       setTranslatedText('');
       setConcepts([]);
       setGifs(new Map());
@@ -414,10 +433,11 @@ export default function LiveLearningAssistant({
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-red-800">{error}</p>
+              <p className="text-sm font-medium text-blue-800">{error}</p>
+              <p className="text-xs text-blue-600 mt-1">Don&apos;t worry - you can still translate by typing or pasting text below!</p>
             </div>
           </div>
         )}
@@ -433,38 +453,90 @@ export default function LiveLearningAssistant({
           </div>
         )}
 
-        {isActive && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-            {/* Original Text */}
-            <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20 min-h-[180px] max-h-[250px] overflow-y-auto">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <div className="text-xs font-semibold text-accent uppercase tracking-wide">Original ({sourceLang})</div>
-              </div>
-              <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">
-                {originalText || (
-                  <span className="text-accent/60 flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Listening to professor...
-                  </span>
-                )}
-              </p>
+        {/* Manual Input Option - Always Available */}
+        <div className="mt-6 space-y-4">
+          <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="text-xs font-semibold text-accent uppercase tracking-wide">Or Type/Paste Text</div>
             </div>
-
-            {/* Translated Text */}
-            <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20 min-h-[180px] max-h-[250px] overflow-y-auto">
-              <div className="flex items-center gap-2 mb-3">
-                {isTranslating && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
-                <div className="text-xs font-semibold text-accent uppercase tracking-wide">Translation ({targetLang})</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <textarea
+                  value={originalText}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setOriginalText(text);
+                    // Clear speech text when typing manually
+                    setSpeechText('');
+                    cumulativeTextRef.current = '';
+                    
+                    // Clear previous timeout
+                    if (translateTimeoutRef.current) {
+                      clearTimeout(translateTimeoutRef.current);
+                    }
+                    
+                    // Auto-translate as you type (debounced)
+                    if (text.trim()) {
+                      translateTimeoutRef.current = setTimeout(() => {
+                        translateInRealTime(text.trim());
+                        analyzeConceptsInRealTime(text.trim());
+                      }, 800);
+                    } else {
+                      setTranslatedText('');
+                    }
+                  }}
+                  placeholder="Type or paste text here..."
+                  className="w-full px-4 py-3 rounded-lg border-2 border-accent/30 bg-background text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent resize-none transition-all min-h-[150px]"
+                  rows={6}
+                />
               </div>
-              <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">
-                {translatedText || (
-                  <span className="text-accent/60">Translation will appear here...</span>
-                )}
-              </p>
+              <div className="bg-background/50 rounded-lg p-4 border border-accent/20 min-h-[150px]">
+                <div className="flex items-center gap-2 mb-2">
+                  {isTranslating && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
+                  <div className="text-xs font-semibold text-accent uppercase">Translation ({targetLang})</div>
+                </div>
+                <p className="text-sm text-text whitespace-pre-wrap min-h-[120px]">
+                  {translatedText || (
+                    <span className="text-accent/60">Translation appears here...</span>
+                  )}
+                </p>
+              </div>
             </div>
           </div>
-        )}
+
+          {isActive && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Original Text from Speech */}
+              <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20 min-h-[180px] max-h-[250px] overflow-y-auto">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <div className="text-xs font-semibold text-accent uppercase tracking-wide">Live Speech ({sourceLang})</div>
+                </div>
+                <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">
+                  {speechText || (
+                    <span className="text-accent/60 flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Listening...
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* Translated Text */}
+              <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20 min-h-[180px] max-h-[250px] overflow-y-auto">
+                <div className="flex items-center gap-2 mb-3">
+                  {isTranslating && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
+                  <div className="text-xs font-semibold text-accent uppercase tracking-wide">Translation ({targetLang})</div>
+                </div>
+                <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">
+                  {translatedText || (
+                    <span className="text-accent/60">Translation will appear here...</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Visual Aids - Premium Grid */}
