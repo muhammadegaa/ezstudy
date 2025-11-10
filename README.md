@@ -11,6 +11,8 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 - User-friendly mobile/web interface with language preference toggles
 - Session history with export options
 - **Live video tutoring sessions** with HD video/audio conferencing
+- **Real-time transcription** - Understand what the professor says instantly
+- **Visual aids** - Automatic GIFs/animations for academic concepts (e.g., physics laws)
 - Screen sharing for presentations and document review
 - Real-time chat during tutoring sessions
 - Integrated translation support during calls
@@ -84,11 +86,16 @@ npm run dev
 4. Share your Peer ID with your tutor/student (click the copy button)
 5. Features available during sessions:
    - Free WebRTC video and audio (no paid services!)
+   - **Real-time transcription** - Click "Start" to transcribe what's being said
+   - **Visual aids** - Automatic GIFs/animations appear for concepts like physics laws, chemical reactions, etc.
    - Screen sharing for presentations
    - Real-time chat messaging
    - Integrated translation panel
    - Mute/unmute audio and video controls
-6. Use the translation features during calls to translate academic terms
+6. **Understanding Features:**
+   - Enable transcription to see real-time text of what the professor says
+   - Visual aids automatically show relevant GIFs/animations for academic concepts
+   - Use translation features to translate academic terms to your language
 7. Click "Leave" to exit the session
 
 ## Sample Lecture Texts
