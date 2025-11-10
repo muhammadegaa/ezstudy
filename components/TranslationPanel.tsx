@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Mic, Send } from 'lucide-react';
 import type { Language, Translation } from '@/types';
 import { renderTranslationWithGlossary } from '@/lib/utils';
+import VoiceOutput from './VoiceOutput';
 
 interface TranslationPanelProps {
   sourceLang: Language;
@@ -125,9 +126,12 @@ export default function TranslationPanel({
 
         {translation && (
           <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Translation ({targetLang === 'en' ? 'English' : targetLang === 'zh' ? '中文' : 'Bahasa Indonesia'})
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-text">
+                Translation ({targetLang === 'en' ? 'English' : targetLang === 'zh' ? '中文' : 'Bahasa Indonesia'})
+              </label>
+              <VoiceOutput text={translation.translated} language={targetLang} />
+            </div>
             <div
               className="w-full px-4 py-3 rounded border border-accent bg-background text-text min-h-[150px]"
               dangerouslySetInnerHTML={{
