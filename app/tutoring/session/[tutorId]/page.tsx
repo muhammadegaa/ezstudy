@@ -2,8 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Video, VideoOff, Mic, MicOff, X, MessageSquare, Send, Users, Copy, CheckCircle2, Loader2 } from 'lucide-react';
+import { 
+  VideoCameraIcon, 
+  VideoCameraSlashIcon, 
+  MicrophoneIcon, 
+  XMarkIcon, 
+  ChatBubbleLeftRightIcon, 
+  PaperAirplaneIcon, 
+  UserGroupIcon, 
+  ClipboardDocumentIcon, 
+  CheckCircleIcon 
+} from '@heroicons/react/24/outline';
+import { Loader2 } from 'lucide-react';
 import LiveLearningAssistant from '@/components/LiveLearningAssistant';
+import MediaPreview from '@/components/WebRTC/MediaPreview';
 import type { Language } from '@/types';
 
 // Extended tutor data matching the tutors list
@@ -47,8 +59,9 @@ export default function TutoringSessionPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [showMediaPreview, setShowMediaPreview] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Start muted by default
+  const [isVideoOff, setIsVideoOff] = useState(true); // Start with video off by default
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; message: string; timestamp: Date }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [participants, setParticipants] = useState(1);
@@ -127,11 +140,15 @@ export default function TutoringSessionPage() {
           // Handle incoming call inline to avoid dependency issues
           try {
             setConnectionStatus('connecting');
-            // Get stream with current video/audio state
-            const currentVideoOff = isVideoOff;
-            const currentMuted = isMuted;
-            const stream = await getLocalStream(!currentVideoOff, !currentMuted);
-            call.answer(stream);
+            // Use current state - video/audio should already be set from preview
+            if (!localStreamRef.current) {
+              // If no stream exists, request it (shouldn't happen if preview was used)
+              const stream = await getLocalStream(!isVideoOff, !isMuted);
+              call.answer(stream);
+            } else {
+              // Use existing stream
+              call.answer(localStreamRef.current);
+            }
             callRef.current = call;
 
             call.on('stream', (remoteStream: MediaStream) => {
@@ -139,6 +156,10 @@ export default function TutoringSessionPage() {
               remoteStreamRef.current = remoteStream;
               if (remoteVideoRef.current) {
                 remoteVideoRef.current.srcObject = remoteStream;
+                // Force play the remote video
+                remoteVideoRef.current.play().catch(err => {
+                  console.error('Error playing remote video:', err);
+                });
               }
               setParticipants(2);
               setIsInCall(true);
@@ -227,7 +248,7 @@ export default function TutoringSessionPage() {
     setConnectionStatus('disconnected');
   };
 
-  const getLocalStream = async (video: boolean = true, audio: boolean = true) => {
+  const getLocalStream = async (video: boolean, audio: boolean) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: video ? { 
@@ -236,21 +257,30 @@ export default function TutoringSessionPage() {
         } : false,
         audio: audio,
       });
+      
+      // Ensure tracks are in the correct state
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = video;
+      });
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = audio;
+      });
+      
       localStreamRef.current = stream;
+      
+      // Update video element
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true; // Mute local video to prevent echo
+        localVideoRef.current.muted = true; // Always mute local video to prevent echo
+        // Force play
+        localVideoRef.current.play().catch(err => {
+          console.error('Error playing local video:', err);
+        });
       }
+      
       return stream;
     } catch (error: any) {
       console.error('Error accessing media devices:', error);
-      if (error.name === 'NotAllowedError') {
-        alert('Camera/microphone access denied. Please allow access in your browser settings.');
-      } else if (error.name === 'NotFoundError') {
-        alert('No camera/microphone found. Please connect a device.');
-      } else {
-        alert(`Could not access camera/microphone: ${error.message}`);
-      }
       throw error;
     }
   };
@@ -341,9 +371,27 @@ export default function TutoringSessionPage() {
     });
   };
 
-  const startCall = async () => {
+  const handleJoinWithMedia = async (stream: MediaStream, videoEnabled: boolean, audioEnabled: boolean) => {
+    setShowMediaPreview(false);
+    setIsMuted(!audioEnabled);
+    setIsVideoOff(!videoEnabled);
+    localStreamRef.current = stream;
+    
+    // Update video element immediately
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+      localVideoRef.current.muted = true;
+      localVideoRef.current.play().catch(console.error);
+    }
+    
+    // Now start the call if we have a remote peer ID
+    if (remotePeerId.trim()) {
+      await startCallWithStream(stream);
+    }
+  };
+
+  const startCallWithStream = async (stream: MediaStream) => {
     if (!remotePeerId.trim()) {
-      alert('Please enter the other person\'s Peer ID');
       return;
     }
 
@@ -356,9 +404,7 @@ export default function TutoringSessionPage() {
     setConnectionStatus('connecting');
 
     try {
-      const stream = await getLocalStream(true, true);
-      
-      // Make the call
+      // Make the call with the provided stream
       const call = peerRef.current.call(remotePeerId, stream);
       callRef.current = call;
 
@@ -367,6 +413,10 @@ export default function TutoringSessionPage() {
         remoteStreamRef.current = remoteStream;
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
+          // Force play
+          remoteVideoRef.current.play().catch(err => {
+            console.error('Error playing remote video:', err);
+          });
         }
         setParticipants(2);
         setIsInCall(true);
@@ -400,6 +450,22 @@ export default function TutoringSessionPage() {
     } finally {
       setIsJoining(false);
     }
+  };
+
+  const startCall = async () => {
+    if (!remotePeerId.trim()) {
+      alert('Please enter the other person\'s Peer ID');
+      return;
+    }
+
+    // Show media preview first
+    if (!localStreamRef.current) {
+      setShowMediaPreview(true);
+      return;
+    }
+
+    // If stream already exists, start call
+    await startCallWithStream(localStreamRef.current);
   };
 
   const toggleMute = () => {
@@ -505,7 +571,7 @@ export default function TutoringSessionPage() {
           <div className="max-w-2xl mx-auto card">
             <div className="text-center mb-8">
               <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
-                <Video className="h-10 w-10 text-white" />
+                <VideoCameraIcon className="h-10 w-10 text-white" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                 {isTutorSession ? 'Tutor Session' : 'Start Video Session'}
@@ -535,7 +601,7 @@ export default function TutoringSessionPage() {
                     disabled={!myId}
                     className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    <Copy className="h-5 w-5" />
+                            <ClipboardDocumentIcon className="h-5 w-5" />
                     Copy
                   </button>
                 </div>
@@ -585,8 +651,8 @@ export default function TutoringSessionPage() {
                       </>
                     ) : (
                       <>
-                        <Video className="h-5 w-5" />
-                        Connect
+                        <VideoCameraIcon className="h-5 w-5" />
+                        Join Session
                       </>
                     )}
                   </button>
@@ -617,29 +683,51 @@ export default function TutoringSessionPage() {
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   {/* Local Video */}
                   <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
+                    {localStreamRef.current && !isVideoOff ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                        onLoadedMetadata={() => {
+                          localVideoRef.current?.play().catch(console.error);
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-xs text-gray-400">Camera off</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
-                      You
+                      You {isMuted && '(Muted)'} {isVideoOff && '(Camera Off)'}
                     </div>
                   </div>
                   {/* Remote Video */}
                   <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
-                    {connectionStatus === 'connected' ? (
+                    {connectionStatus === 'connected' && remoteStreamRef.current ? (
                       <video
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
                         className="w-full h-full object-cover"
+                        onLoadedMetadata={() => {
+                          remoteVideoRef.current?.play().catch(console.error);
+                        }}
                       />
-                    ) : (
+                    ) : connectionStatus === 'connecting' ? (
                       <div className="w-full h-full flex items-center justify-center">
                         <Loader2 className="h-12 w-12 animate-spin text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-xs text-gray-400">Waiting for connection...</p>
+                        </div>
                       </div>
                     )}
                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
@@ -655,29 +743,39 @@ export default function TutoringSessionPage() {
                     className={`p-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-110 ${
                       isMuted ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                     }`}
+                    aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
                   >
-                    {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    {isMuted ? (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+                      </svg>
+                    ) : (
+                      <MicrophoneIcon className="h-5 w-5" />
+                    )}
                   </button>
                   <button
                     onClick={toggleVideo}
                     className={`p-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-110 ${
                       isVideoOff ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                     }`}
+                    aria-label={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
                   >
-                    {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+                    {isVideoOff ? <VideoCameraSlashIcon className="h-5 w-5" /> : <VideoCameraIcon className="h-5 w-5" />}
                   </button>
                   <button
                     onClick={leaveCall}
                     className="p-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-110"
+                    aria-label="Leave call"
                   >
-                    <X className="h-5 w-5" />
+                    <XMarkIcon className="h-5 w-5" />
                   </button>
                 </div>
 
                 {/* Connection Status */}
                 {connectionStatus === 'connected' && (
                   <div className="mt-4 flex items-center justify-center gap-2 text-sm text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CheckCircleIcon className="h-4 w-4" />
                     <span className="font-medium">Connected</span>
                   </div>
                 )}
@@ -692,21 +790,21 @@ export default function TutoringSessionPage() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                    <MessageSquare className="h-4 w-4 text-primary-600" />
+                    <ChatBubbleLeftRightIcon className="h-4 w-4 text-primary-600" />
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">Chat</h3>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
-                  <Users className="h-4 w-4 text-gray-600" />
+                  <UserGroupIcon className="h-4 w-4 text-gray-600" />
                   <span className="text-sm font-semibold text-gray-700">{participants}</span>
                 </div>
               </div>
 
               <div className="space-y-3 mb-4 max-h-[500px] overflow-y-auto">
-                {chatMessages.length === 0 ? (
-                  <div className="text-center py-12">
-                    <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">No messages yet</p>
+                        {chatMessages.length === 0 ? (
+                          <div className="text-center py-12">
+                            <ChatBubbleLeftRightIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-sm text-gray-500">No messages yet</p>
                     <p className="text-xs text-gray-400 mt-1">
                       {dataChannelsRef.current.size === 0 
                         ? 'Waiting for connection...' 
@@ -745,7 +843,7 @@ export default function TutoringSessionPage() {
                   disabled={!chatInput.trim() || dataChannelsRef.current.size === 0}
                   className="px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  <Send className="h-5 w-5" />
+                  <PaperAirplaneIcon className="h-5 w-5" />
                 </button>
               </div>
             </div>
