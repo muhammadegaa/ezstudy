@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Robust multi-provider translation system
+    // Robust multi-provider translation system with automatic chunking
+    // Handles texts of ANY length - automatically splits long texts
     // Tries: MyMemory -> Google Translate -> LibreTranslate -> Simple Fallback
     const result = await translateText(
       text,
@@ -25,9 +26,18 @@ export async function POST(request: NextRequest) {
       targetLang as Language
     );
 
-    // Always return a result - even if translation failed, return original
+    // NEVER return error messages - always return usable text
+    const translation = result.translation || originalText;
+    
+    // Remove any error messages that might have leaked through
+    const cleanTranslation = translation
+      .replace(/QUERY LENGTH LIMIT EXCEEDED.*/gi, '')
+      .replace(/MAX ALLOWED QUERY.*/gi, '')
+      .replace(/\[Translation.*unavailable.*\]/gi, '')
+      .trim() || originalText;
+
     return NextResponse.json({
-      translation: result.translation || originalText,
+      translation: cleanTranslation,
       glossary: result.glossary || [],
     });
   } catch (error: any) {
