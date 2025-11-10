@@ -67,13 +67,20 @@ export default function LiveLearningAssistant({
 
     const checkPermission = async () => {
       try {
-        // Try to get microphone access silently
+        // Try to get microphone access - this confirms permission is actually working
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-        setHasMicrophone(true);
+        const tracks = stream.getAudioTracks();
+        if (tracks.length > 0 && tracks[0].readyState === 'live') {
+          // Permission is granted AND microphone is actually working
+          setHasMicrophone(true);
+          stream.getTracks().forEach(track => track.stop());
+        } else {
+          setHasMicrophone(false);
+          stream.getTracks().forEach(track => track.stop());
+        }
       } catch (e: any) {
-        // Permission not granted yet, that's fine - will request when user clicks
-        setHasMicrophone(null);
+        // Permission not granted or error
+        setHasMicrophone(false);
       }
     };
 
@@ -93,40 +100,69 @@ export default function LiveLearningAssistant({
       return;
     }
 
-    if (isSupported === false) {
-      setError('Speech recognition requires Chrome, Edge, or Safari.');
-      setIsActive(false);
-      return;
-    }
+    // CRITICAL: Verify microphone permission is actually working before starting
+    const verifyAndStart = async () => {
+      try {
+        // Double-check permission is actually working
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const tracks = stream.getAudioTracks();
+        if (tracks.length === 0 || tracks[0].readyState !== 'live') {
+          setError('Microphone is not working. Please check your microphone connection.');
+          setHasMicrophone(false);
+          setIsActive(false);
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        stream.getTracks().forEach(track => track.stop());
+        setHasMicrophone(true);
+      } catch (e: any) {
+        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+          setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+        } else if (e.name === 'NotFoundError') {
+          setError('No microphone found. Please connect a microphone.');
+        } else {
+          setError(`Microphone error: ${e.message || e.name}`);
+        }
+        setHasMicrophone(false);
+        setIsActive(false);
+        return;
+      }
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+      // Permission verified, now start recognition
+      if (isSupported === false) {
+        setError('Speech recognition requires Chrome, Edge, or Safari.');
+        setIsActive(false);
+        return;
+      }
 
-    if (!SpeechRecognition) {
-      setError('Speech recognition not available');
-      setIsActive(false);
-      return;
-    }
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    
-    const langMap = {
-      en: 'en-GB',
-      zh: 'zh-CN',
-      id: 'id-ID',
-    };
-    recognition.lang = langMap[sourceLang] || 'en-GB';
+      if (!SpeechRecognition) {
+        setError('Speech recognition not available');
+        setIsActive(false);
+        return;
+      }
 
-    recognition.onstart = () => {
-      setError(null);
-      setIsRequestingPermission(false);
-      setHasMicrophone(true);
-    };
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      
+      const langMap = {
+        en: 'en-GB',
+        zh: 'zh-CN',
+        id: 'id-ID',
+      };
+      recognition.lang = langMap[sourceLang] || 'en-GB';
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      recognition.onstart = () => {
+        setError(null);
+        setIsRequestingPermission(false);
+        setHasMicrophone(true);
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interimText = '';
       let finalText = '';
 
@@ -152,7 +188,7 @@ export default function LiveLearningAssistant({
       }
     };
 
-    recognition.onerror = (event: any) => {
+      recognition.onerror = (event: any) => {
       setIsRequestingPermission(false);
       
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -199,7 +235,7 @@ export default function LiveLearningAssistant({
       }
     };
 
-    recognition.onend = () => {
+      recognition.onend = () => {
       setIsRequestingPermission(false);
       if (isActive && recognitionRef.current) {
         setTimeout(() => {
@@ -214,41 +250,44 @@ export default function LiveLearningAssistant({
       }
     };
 
-    recognitionRef.current = recognition;
-    
-    setIsRequestingPermission(true);
-    setTimeout(() => {
-      if (!isActive || !recognitionRef.current) return;
+      recognitionRef.current = recognition;
       
-      try {
-        recognitionRef.current.start();
-        setHasMicrophone(true);
-      } catch (e: any) {
-        setIsRequestingPermission(false);
-        if (e.message && e.message.includes('already started')) {
-          setHasMicrophone(true);
-        } else if (e.message && e.message.includes('not-allowed') || e.name === 'NotAllowedError') {
-          setError('Microphone permission denied. Click the microphone icon in your browser address bar to allow access.');
-          setHasMicrophone(false);
-          setIsActive(false);
-        } else {
-          setError(`Failed to start: ${e.message || 'Unknown error'}`);
-          setHasMicrophone(false);
-          setIsActive(false);
-        }
-      }
-    }, 100);
-
-    return () => {
-      if (recognitionRef.current) {
+      setIsRequestingPermission(true);
+      setTimeout(() => {
+        if (!isActive || !recognitionRef.current) return;
+        
         try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          // Ignore
+          recognitionRef.current.start();
+          setHasMicrophone(true);
+        } catch (e: any) {
+          setIsRequestingPermission(false);
+          if (e.message && e.message.includes('already started')) {
+            setHasMicrophone(true);
+          } else if (e.message && e.message.includes('not-allowed') || e.name === 'NotAllowedError') {
+            setError('Microphone permission denied. Please refresh the page and allow microphone access.');
+            setHasMicrophone(false);
+            setIsActive(false);
+          } else {
+            setError(`Failed to start: ${e.message || 'Unknown error'}`);
+            setHasMicrophone(false);
+            setIsActive(false);
+          }
         }
-        recognitionRef.current = null;
-      }
+      }, 200);
+
+      return () => {
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch (e) {
+            // Ignore
+          }
+          recognitionRef.current = null;
+        }
+      };
     };
+
+    verifyAndStart();
   }, [isActive, sourceLang, targetLang, isSupported]);
 
   const translateInRealTime = async (text: string) => {
