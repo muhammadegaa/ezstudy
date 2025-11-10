@@ -134,6 +134,14 @@ export default function LiveLearningAssistant({
       return;
     }
 
+    // CRITICAL: Don't start recognition unless permission is granted
+    if (permissionState !== 'granted' && hasMicrophone !== true) {
+      console.log('Waiting for microphone permission...');
+      setIsActive(false);
+      setShowPermissionPrompt(true);
+      return;
+    }
+
     if (isSupported === false) {
       setError('Speech recognition requires Chrome, Edge, or Safari.');
       setIsActive(false);
@@ -264,29 +272,36 @@ export default function LiveLearningAssistant({
 
     recognitionRef.current = recognition;
     
-    // Start recognition - permission should already be granted
+    // Start recognition - permission MUST be granted at this point
     setIsRequestingPermission(true);
-    try {
-      recognition.start();
-      console.log('✅ Speech recognition started');
-      setHasMicrophone(true);
-    } catch (e: any) {
-      console.error('Failed to start recognition:', e);
-      setIsRequestingPermission(false);
-      if (e.message && e.message.includes('already started')) {
-        console.log('Recognition already running');
+    
+    // Small delay to ensure permission state is synced
+    setTimeout(() => {
+      if (!isActive || !recognitionRef.current) return;
+      
+      try {
+        recognitionRef.current.start();
+        console.log('✅ Speech recognition started');
         setHasMicrophone(true);
-      } else if (e.message && e.message.includes('not-allowed')) {
-        setError('Microphone permission denied. Please allow microphone access.');
-        setHasMicrophone(false);
-        setPermissionState('denied');
-        setIsActive(false);
-      } else {
-        setError(`Failed to start listening: ${e.message || 'Unknown error'}`);
-        setHasMicrophone(false);
-        setIsActive(false);
+      } catch (e: any) {
+        console.error('Failed to start recognition:', e);
+        setIsRequestingPermission(false);
+        if (e.message && e.message.includes('already started')) {
+          console.log('Recognition already running');
+          setHasMicrophone(true);
+        } else if (e.message && e.message.includes('not-allowed') || e.name === 'NotAllowedError') {
+          setError('Microphone permission denied. Please allow microphone access.');
+          setHasMicrophone(false);
+          setPermissionState('denied');
+          setIsActive(false);
+          setShowPermissionPrompt(true);
+        } else {
+          setError(`Failed to start listening: ${e.message || 'Unknown error'}`);
+          setHasMicrophone(false);
+          setIsActive(false);
+        }
       }
-    }
+    }, 100);
 
     return () => {
       if (recognitionRef.current) {
@@ -298,7 +313,7 @@ export default function LiveLearningAssistant({
         recognitionRef.current = null;
       }
     };
-  }, [isActive, sourceLang, targetLang, isSupported]);
+  }, [isActive, sourceLang, targetLang, isSupported, permissionState, hasMicrophone]);
 
   const translateInRealTime = async (text: string) => {
     if (!text.trim()) return;
@@ -423,12 +438,13 @@ export default function LiveLearningAssistant({
 
   const handleToggle = async () => {
     if (!isActive) {
-      // Check if we need to request permission first
+      // ALWAYS check permission first - don't start until granted
       if (permissionState !== 'granted' && hasMicrophone !== true) {
         setShowPermissionPrompt(true);
         return;
       }
       
+      // Permission is granted, safe to start
       setError(null);
       cumulativeTextRef.current = '';
       setSpeechText('');
