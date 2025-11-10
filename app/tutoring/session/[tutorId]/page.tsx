@@ -143,6 +143,14 @@ export default function TutoringSessionPage() {
               setParticipants(2);
               setIsInCall(true);
               setConnectionStatus('connected');
+              
+              // CRITICAL: Create data channel BACK to the caller for bidirectional chat
+              if (peerRef.current && call.peer) {
+                const returnConn = peerRef.current.connect(call.peer, {
+                  reliable: true,
+                });
+                handleDataConnection(returnConn);
+              }
             });
 
             call.on('close', () => {
@@ -152,7 +160,9 @@ export default function TutoringSessionPage() {
 
             call.on('error', (err: any) => {
               console.error('Call error:', err);
-              cleanup();
+              if (err.type !== 'peer-unavailable') {
+                setConnectionStatus('disconnected');
+              }
             });
           } catch (error) {
             console.error('Error handling incoming call:', error);
@@ -280,14 +290,35 @@ export default function TutoringSessionPage() {
   };
 
   const handleDataConnection = (conn: any) => {
+    // Check if connection already exists
+    if (dataChannelsRef.current.has(conn.peer)) {
+      console.log('Data connection already exists for:', conn.peer);
+      return;
+    }
+
     conn.on('open', () => {
-      console.log('Data connection opened');
+      console.log('Data connection opened with:', conn.peer);
       dataChannelsRef.current.set(conn.peer, conn);
+      // Send a welcome message to confirm connection
+      try {
+        conn.send(JSON.stringify({
+          name: isTutorSession ? 'Tutor' : 'Student',
+          message: 'Connected! Chat is now active.',
+          type: 'system',
+        }));
+      } catch (e) {
+        console.error('Error sending welcome message:', e);
+      }
     });
 
     conn.on('data', (data: string) => {
       try {
         const message = JSON.parse(data);
+        // Don't show system messages in chat
+        if (message.type === 'system') {
+          console.log('System message:', message.message);
+          return;
+        }
         setChatMessages(prev => [...prev, {
           id: Date.now().toString() + Math.random(),
           name: message.name || 'Peer',
@@ -300,8 +331,9 @@ export default function TutoringSessionPage() {
     });
 
     conn.on('close', () => {
-      console.log('Data connection closed');
+      console.log('Data connection closed:', conn.peer);
       dataChannelsRef.current.delete(conn.peer);
+      setParticipants(prev => Math.max(1, prev - 1));
     });
 
     conn.on('error', (err: any) => {
@@ -348,8 +380,11 @@ export default function TutoringSessionPage() {
 
       call.on('error', (err: any) => {
         console.error('Call error:', err);
-        alert(`Failed to connect: ${err.message || 'Unknown error'}`);
-        cleanup();
+        if (err.type !== 'peer-unavailable') {
+          alert(`Connection error: ${err.message || 'Failed to connect. Please check the Peer ID and try again.'}`);
+        }
+        setConnectionStatus('disconnected');
+        setIsJoining(false);
       });
 
       // Create data connection for chat
@@ -672,7 +707,11 @@ export default function TutoringSessionPage() {
                   <div className="text-center py-12">
                     <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-sm text-gray-500">No messages yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Start chatting with {tutor.name}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {dataChannelsRef.current.size === 0 
+                        ? 'Waiting for connection...' 
+                        : `Start chatting with ${isTutorSession ? 'student' : tutor.name}`}
+                    </p>
                   </div>
                 ) : (
                   chatMessages.map(msg => (

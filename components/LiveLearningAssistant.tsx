@@ -931,25 +931,29 @@ export default function LiveLearningAssistant({
                   <div className="space-y-4">
                     {/* Professional formatted note display */}
                     <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 rounded-xl border-2 border-gray-200 p-6 shadow-sm">
-                      <div className="font-mono text-xs text-gray-900 whitespace-pre-wrap leading-relaxed">
+                      <div className="prose prose-sm max-w-none">
                         {note.enhanced.split('\n').map((line, idx) => {
-                          // Style different sections
+                          // Style different sections professionally
                           if (line.includes('═══════════════════════════════════════════════════════════')) {
-                            return <div key={idx} className="text-gray-400 font-bold py-1">{line}</div>;
+                            return <div key={idx} className="text-gray-300 font-mono text-xs py-2 border-b border-gray-200">{line}</div>;
                           }
                           if (line.includes('───────────────────────────────────────────────────────────')) {
-                            return <div key={idx} className="text-gray-300 py-1">{line}</div>;
+                            return <div key={idx} className="text-gray-200 py-1 border-b border-gray-100">{line}</div>;
                           }
                           if (line.match(/^[📋🔑📌🌐📄]/)) {
-                            return <div key={idx} className="text-primary-700 font-bold text-sm mt-4 mb-2">{line}</div>;
+                            return <div key={idx} className="text-primary-700 font-bold text-base mt-6 mb-3 first:mt-0">{line}</div>;
                           }
                           if (line.match(/^\d+\./)) {
-                            return <div key={idx} className="text-gray-800 ml-4 py-0.5">{line}</div>;
+                            return <div key={idx} className="text-gray-800 ml-6 py-1 text-sm leading-relaxed">{line}</div>;
                           }
                           if (line.trim() === '') {
-                            return <div key={idx} className="h-2"></div>;
+                            return <div key={idx} className="h-3"></div>;
                           }
-                          return <div key={idx} className="text-gray-700 py-0.5">{line}</div>;
+                          // Regular content
+                          if (line.trim().length > 0) {
+                            return <div key={idx} className="text-gray-700 py-1 text-sm leading-relaxed">{line}</div>;
+                          }
+                          return null;
                         })}
                       </div>
                     </div>
