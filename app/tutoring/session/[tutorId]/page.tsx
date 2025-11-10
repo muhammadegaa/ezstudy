@@ -472,8 +472,14 @@ export default function TutoringSessionPage() {
               <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
                 <Video className="h-10 w-10 text-white" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Start Video Session</h2>
-              <p className="text-gray-600">Connect with {tutor.name} for personalized learning</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {isTutorSession ? 'Tutor Session' : 'Start Video Session'}
+              </h2>
+              <p className="text-gray-600">
+                {isTutorSession 
+                  ? 'Share your Peer ID with students to start teaching'
+                  : `Connect with ${tutor.name} for personalized learning`}
+              </p>
             </div>
             
             <div className="space-y-6">
