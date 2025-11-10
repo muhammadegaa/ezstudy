@@ -59,13 +59,21 @@ export default function LiveLearningAssistant({
   // Request microphone permission
   const requestMicrophonePermission = async () => {
     setIsRequestingPermission(true);
+    setError(null);
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop the stream immediately - we just needed permission
+      stream.getTracks().forEach(track => track.stop());
       setIsRequestingPermission(false);
       return true;
     } catch (err: any) {
       setIsRequestingPermission(false);
-      setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setError('Microphone permission denied. Please allow microphone access in your browser settings and refresh the page.');
+      } else {
+        setError(`Failed to access microphone: ${err.message}`);
+      }
+      setIsActive(false);
       return false;
     }
   };
@@ -112,7 +120,8 @@ export default function LiveLearningAssistant({
 
     recognition.onstart = () => {
       setError(null);
-      console.log('Speech recognition started');
+      setIsRequestingPermission(false);
+      console.log('✅ Speech recognition started successfully');
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -141,52 +150,69 @@ export default function LiveLearningAssistant({
 
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        setError('Microphone access denied. Please allow microphone access and try again.');
+      setIsRequestingPermission(false);
+      
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setError('Microphone access denied. Please allow microphone access in browser settings and refresh.');
         setIsActive(false);
       } else if (event.error === 'no-speech') {
-        // This is normal, just restart
-        if (isActive) {
+        // This is normal - no speech detected, just restart silently
+        if (isActive && recognitionRef.current) {
           setTimeout(() => {
             try {
-              recognition.start();
+              if (recognitionRef.current && isActive) {
+                recognitionRef.current.start();
+              }
             } catch (e) {
               console.error('Failed to restart:', e);
             }
-          }, 100);
+          }, 500);
         }
-      } else if (event.error !== 'aborted') {
-        setError(`Speech recognition error: ${event.error}`);
+      } else if (event.error === 'aborted') {
+        // User stopped it, ignore
+      } else {
+        setError(`Speech recognition error: ${event.error}. Please try again.`);
+        setIsActive(false);
       }
     };
 
     recognition.onend = () => {
-      if (isActive) {
+      setIsRequestingPermission(false);
+      if (isActive && recognitionRef.current) {
         setTimeout(() => {
           try {
-            recognition.start();
+            if (recognitionRef.current && isActive) {
+              recognitionRef.current.start();
+            }
           } catch (e) {
             console.error('Failed to restart recognition:', e);
             setIsActive(false);
           }
-        }, 100);
+        }, 300);
       }
     };
 
     recognitionRef.current = recognition;
     
-    // Request permission first
-    requestMicrophonePermission().then((hasPermission) => {
-      if (hasPermission && isActive) {
+    // Request permission and start recognition
+    const startRecognition = async () => {
+      const hasPermission = await requestMicrophonePermission();
+      if (hasPermission && isActive && recognitionRef.current) {
         try {
-          recognition.start();
+          recognitionRef.current.start();
+          console.log('Speech recognition started successfully');
         } catch (e: any) {
           console.error('Failed to start recognition:', e);
-          setError('Failed to start listening. Please check your microphone permissions.');
+          setError('Failed to start listening. Please try again.');
           setIsActive(false);
+          setIsRequestingPermission(false);
         }
+      } else if (!hasPermission) {
+        setIsActive(false);
       }
-    });
+    };
+
+    startRecognition();
 
     return () => {
       if (recognitionRef.current) {
@@ -198,7 +224,7 @@ export default function LiveLearningAssistant({
         recognitionRef.current = null;
       }
     };
-  }, [isActive, sourceLang, isSupported]);
+  }, [isActive, sourceLang, targetLang, isSupported]);
 
   const translateInRealTime = async (text: string) => {
     if (!text.trim() || sourceLang === targetLang) {
@@ -318,18 +344,26 @@ export default function LiveLearningAssistant({
 
   const handleToggle = async () => {
     if (!isActive) {
-      // Starting - request permission first
-      const hasPermission = await requestMicrophonePermission();
-      if (hasPermission) {
-        setIsActive(true);
-        setError(null);
-        cumulativeTextRef.current = '';
-        setOriginalText('');
-        setTranslatedText('');
-      }
+      // Starting - clear previous state
+      setError(null);
+      cumulativeTextRef.current = '';
+      setOriginalText('');
+      setTranslatedText('');
+      setConcepts([]);
+      setGifs(new Map());
+      setIsActive(true);
+      // Permission will be requested in useEffect
     } else {
       // Stopping
       setIsActive(false);
+      setIsRequestingPermission(false);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Ignore
+        }
+      }
     }
   };
 
