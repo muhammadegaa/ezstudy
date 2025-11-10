@@ -1,85 +1,174 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Free concept extraction using keyword matching and pattern recognition
-// No paid APIs required!
+// AI-powered concept extraction - intelligently identifies concepts that NEED visual aids
+// Uses free AI services to understand context and determine what's actually visualizable
 
-const ACADEMIC_PATTERNS = [
-  // Physics
-  { pattern: /newton['\s]s?\s+(first|second|third)\s+law/gi, category: 'Physics', searchTerms: ['newton law', 'physics motion'] },
-  { pattern: /quantum\s+mechanics?/gi, category: 'Physics', searchTerms: ['quantum mechanics', 'quantum physics'] },
-  { pattern: /wave[- ]particle\s+duality/gi, category: 'Physics', searchTerms: ['wave particle duality', 'quantum physics'] },
-  { pattern: /einstein['\s]s?\s+theory\s+of\s+relativity/gi, category: 'Physics', searchTerms: ['einstein relativity', 'theory of relativity'] },
-  { pattern: /photoelectric\s+effect/gi, category: 'Physics', searchTerms: ['photoelectric effect', 'light electrons'] },
-  { pattern: /schrödinger['\s]s?\s+equation/gi, category: 'Physics', searchTerms: ['schrodinger equation', 'quantum mechanics'] },
-  
-  // Chemistry
-  { pattern: /photosynthesis/gi, category: 'Chemistry', searchTerms: ['photosynthesis', 'plant process'] },
-  { pattern: /chemical\s+reaction/gi, category: 'Chemistry', searchTerms: ['chemical reaction', 'chemistry'] },
-  { pattern: /periodic\s+table/gi, category: 'Chemistry', searchTerms: ['periodic table', 'elements'] },
-  { pattern: /molecular\s+structure/gi, category: 'Chemistry', searchTerms: ['molecular structure', 'molecules'] },
-  
-  // Biology
-  { pattern: /mitosis/gi, category: 'Biology', searchTerms: ['mitosis', 'cell division'] },
-  { pattern: /meiosis/gi, category: 'Biology', searchTerms: ['meiosis', 'cell division'] },
-  { pattern: /dna\s+replication/gi, category: 'Biology', searchTerms: ['dna replication', 'genetics'] },
-  { pattern: /evolution/gi, category: 'Biology', searchTerms: ['evolution', 'natural selection'] },
-  
-  // Mathematics
-  { pattern: /calculus/gi, category: 'Mathematics', searchTerms: ['calculus', 'mathematics'] },
-  { pattern: /derivative/gi, category: 'Mathematics', searchTerms: ['derivative', 'calculus'] },
-  { pattern: /integral/gi, category: 'Mathematics', searchTerms: ['integral', 'calculus'] },
-  { pattern: /pythagorean\s+theorem/gi, category: 'Mathematics', searchTerms: ['pythagorean theorem', 'geometry'] },
-  
-  // General academic terms
-  { pattern: /\bhypothesis\b/gi, category: 'General', searchTerms: ['hypothesis', 'scientific method'] },
-  { pattern: /\btheorem\b/gi, category: 'Mathematics', searchTerms: ['theorem', 'mathematics'] },
-  { pattern: /\bprinciple\b/gi, category: 'General', searchTerms: ['principle', 'concept'] },
-  { pattern: /\btheory\b/gi, category: 'General', searchTerms: ['theory', 'scientific theory'] },
-];
+const COMMON_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+  'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+  'can', 'may', 'might', 'must', 'shall', 'plus', 'minus', 'showcases', 'section',
+  'chapter', 'part', 'example', 'instance', 'case', 'point', 'way', 'method', 'approach'
+]);
 
-function extractConcepts(transcript: string): Array<{
+async function analyzeWithAI(transcript: string): Promise<Array<{
   name: string;
   description: string;
   searchTerms: string[];
+  needsVisual: boolean;
+}>> {
+  // Use free AI service to intelligently identify visualizable concepts
+  try {
+    const prompt = `You are an AI assistant analyzing academic lecture transcripts. Your task is to identify ONLY concepts that would genuinely benefit from visual aids (animations, diagrams, GIFs).
+
+CRITICAL RULES:
+- ONLY identify scientific/mathematical concepts that can be VISUALIZED
+- IGNORE common words: "plus", "minus", "showcases", "section", "chapter", "example", "evolution" (unless it's biological evolution)
+- IGNORE abstract concepts that don't need visuals: philosophy, ethics, general theories
+- FOCUS ON: physics laws, chemical reactions, biological processes, mathematical visualizations, scientific phenomena
+
+Transcript: "${transcript.substring(0, 1500)}"
+
+Return JSON array format:
+[{"name": "Quantum Mechanics", "description": "Physics concept", "searchTerms": ["quantum mechanics"], "needsVisual": true}]
+
+If NO concepts need visual aids, return: []`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    // Try multiple free AI endpoints
+    const endpoints = [
+      'https://api-inference.huggingface.co/models/google/flan-t5-base',
+      'https://api-inference.huggingface.co/models/microsoft/DialoGPT-small',
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputs: prompt,
+            parameters: {
+              max_length: 500,
+              return_full_text: false,
+            },
+          }),
+          signal: controller.signal,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Try to extract concepts from response
+          if (data && Array.isArray(data) && data[0]) {
+            const text = JSON.stringify(data[0]);
+            const jsonMatch = text.match(/\[[\s\S]*?\]/);
+            if (jsonMatch) {
+              try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (Array.isArray(parsed)) {
+                  const filtered = parsed.filter((c: any) => 
+                    c && c.name && c.needsVisual !== false && 
+                    !['plus', 'minus', 'showcases', 'section'].includes(c.name.toLowerCase())
+                  );
+                  if (filtered.length > 0) {
+                    clearTimeout(timeoutId);
+                    return filtered;
+                  }
+                }
+              } catch (e) {
+                // Continue to next endpoint
+              }
+            }
+          }
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    clearTimeout(timeoutId);
+  } catch (error) {
+    console.error('AI concept analysis error:', error);
+  }
+
+  // Fallback: Intelligent pattern-based extraction with context awareness
+  return intelligentExtraction(transcript);
+}
+
+function intelligentExtraction(transcript: string): Array<{
+  name: string;
+  description: string;
+  searchTerms: string[];
+  needsVisual: boolean;
 }> {
-  const concepts: Map<string, { name: string; description: string; searchTerms: string[] }> = new Map();
-  
-  // Extract concepts using patterns
-  for (const { pattern, category, searchTerms } of ACADEMIC_PATTERNS) {
-    const matches = transcript.match(pattern);
-    if (matches) {
-      const match = matches[0];
-      const conceptName = match.charAt(0).toUpperCase() + match.slice(1).toLowerCase();
-      
-      if (!concepts.has(conceptName.toLowerCase())) {
-        concepts.set(conceptName.toLowerCase(), {
-          name: conceptName,
-          description: `${category} concept: ${conceptName}`,
+  const concepts: Map<string, {
+    name: string;
+    description: string;
+    searchTerms: string[];
+    needsVisual: boolean;
+  }> = new Map();
+
+  // Only match concepts that ACTUALLY need visual aids
+  const visualizablePatterns = [
+    // Physics - visualizable
+    { pattern: /quantum\s+(mechanics|physics|computing|algorithms?|computers?)/gi, name: 'Quantum Mechanics', searchTerms: ['quantum mechanics', 'quantum physics'], category: 'Physics' },
+    { pattern: /wave[- ]particle\s+duality/gi, name: 'Wave-Particle Duality', searchTerms: ['wave particle duality', 'quantum physics'], category: 'Physics' },
+    { pattern: /newton['\s]s?\s+(first|second|third)\s+law/gi, name: "Newton's Laws", searchTerms: ['newton laws', 'physics motion'], category: 'Physics' },
+    { pattern: /einstein['\s]s?\s+relativity/gi, name: "Einstein's Relativity", searchTerms: ['einstein relativity', 'theory of relativity'], category: 'Physics' },
+    { pattern: /photoelectric\s+effect/gi, name: 'Photoelectric Effect', searchTerms: ['photoelectric effect', 'light electrons'], category: 'Physics' },
+    { pattern: /electromagnetic\s+waves?/gi, name: 'Electromagnetic Waves', searchTerms: ['electromagnetic waves', 'light waves'], category: 'Physics' },
+    
+    // Chemistry - visualizable
+    { pattern: /chemical\s+reaction/gi, name: 'Chemical Reaction', searchTerms: ['chemical reaction', 'chemistry'], category: 'Chemistry' },
+    { pattern: /molecular\s+structure/gi, name: 'Molecular Structure', searchTerms: ['molecular structure', 'molecules'], category: 'Chemistry' },
+    { pattern: /periodic\s+table/gi, name: 'Periodic Table', searchTerms: ['periodic table', 'elements'], category: 'Chemistry' },
+    { pattern: /photosynthesis/gi, name: 'Photosynthesis', searchTerms: ['photosynthesis', 'plant process'], category: 'Chemistry' },
+    
+    // Biology - visualizable
+    { pattern: /cell\s+division/gi, name: 'Cell Division', searchTerms: ['cell division', 'mitosis'], category: 'Biology' },
+    { pattern: /mitosis/gi, name: 'Mitosis', searchTerms: ['mitosis', 'cell division'], category: 'Biology' },
+    { pattern: /meiosis/gi, name: 'Meiosis', searchTerms: ['meiosis', 'cell division'], category: 'Biology' },
+    { pattern: /dna\s+(replication|structure)/gi, name: 'DNA Structure', searchTerms: ['dna structure', 'genetics'], category: 'Biology' },
+    
+    // Mathematics - only visualizable concepts
+    { pattern: /pythagorean\s+theorem/gi, name: 'Pythagorean Theorem', searchTerms: ['pythagorean theorem', 'geometry'], category: 'Mathematics' },
+    { pattern: /derivative/gi, name: 'Derivative', searchTerms: ['derivative', 'calculus graph'], category: 'Mathematics' },
+    { pattern: /integral/gi, name: 'Integral', searchTerms: ['integral', 'calculus'], category: 'Mathematics' },
+    { pattern: /complex\s+numbers?/gi, name: 'Complex Numbers', searchTerms: ['complex numbers', 'imaginary numbers'], category: 'Mathematics' },
+    { pattern: /square\s+root/gi, name: 'Square Root', searchTerms: ['square root', 'mathematics'], category: 'Mathematics' },
+  ];
+
+  // Extract only visualizable concepts
+  for (const { pattern, name, searchTerms, category } of visualizablePatterns) {
+    if (pattern.test(transcript)) {
+      const key = name.toLowerCase();
+      if (!concepts.has(key)) {
+        concepts.set(key, {
+          name,
+          description: `${category} concept that benefits from visual explanation`,
           searchTerms,
+          needsVisual: true,
         });
       }
     }
   }
-  
-  // Extract capitalized terms (likely proper nouns or important concepts)
-  const capitalizedTerms = transcript.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
-  if (capitalizedTerms) {
-    for (const term of capitalizedTerms) {
-      const lowerTerm = term.toLowerCase();
-      // Skip common words
-      if (term.length > 3 && !['The', 'This', 'That', 'There', 'These', 'Those'].includes(term)) {
-        if (!concepts.has(lowerTerm)) {
-          concepts.set(lowerTerm, {
-            name: term,
-            description: `Academic term: ${term}`,
-            searchTerms: [term.toLowerCase()],
-          });
-        }
-      }
-    }
-  }
-  
-  return Array.from(concepts.values()).slice(0, 10); // Limit to 10 concepts
+
+  // Filter out common words and non-visualizable terms
+  const filtered = Array.from(concepts.values()).filter(concept => {
+    const lowerName = concept.name.toLowerCase();
+    // Skip if it's a common word
+    if (COMMON_WORDS.has(lowerName)) return false;
+    // Skip single generic words
+    if (lowerName.split(/\s+/).length === 1 && lowerName.length < 6) return false;
+    // Only include if it's marked as needing visual
+    return concept.needsVisual === true;
+  });
+
+  return filtered.slice(0, 8); // Limit to 8 most relevant
 }
 
 export async function POST(request: NextRequest) {
@@ -94,21 +183,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (transcript.length < 10) {
+    if (transcript.length < 20) {
       return NextResponse.json({
         concepts: [],
       });
     }
 
-    // Extract concepts using free pattern matching
-    const concepts = extractConcepts(transcript);
+    // Use AI to intelligently extract concepts that NEED visual aids
+    const concepts = await analyzeWithAI(transcript);
+
+    // Filter to only concepts that need visuals
+    const visualConcepts = concepts.filter(c => c.needsVisual !== false);
 
     return NextResponse.json({
-      concepts,
+      concepts: visualConcepts,
     });
   } catch (error: any) {
     console.error('Concept analysis error:', error);
-    // Return empty array instead of error to not break the UI
+    // Return empty array - better to show nothing than wrong concepts
     return NextResponse.json({
       concepts: [],
     });

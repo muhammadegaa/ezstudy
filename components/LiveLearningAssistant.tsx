@@ -458,19 +458,31 @@ export default function LiveLearningAssistant({
   }, [sourceLang, targetLang]);
 
   const fetchGifForConcept = async (concept: Concept) => {
+    // Only fetch GIFs for concepts that actually need visual aids
+    // Skip common words and non-visualizable concepts
+    const commonWords = ['plus', 'minus', 'showcases', 'section', 'chapter', 'example', 'evolution'];
+    const lowerName = concept.name.toLowerCase();
+    
+    if (commonWords.some(word => lowerName.includes(word))) {
+      return; // Don't fetch GIFs for common words
+    }
+
     try {
       const searchTerm = concept.searchTerms[0] || concept.name;
       const response = await fetch(`/api/gifs?q=${encodeURIComponent(searchTerm)}`);
 
       if (response.ok) {
         const data = await response.json();
-        setGifs((prev) => {
-          const newMap = new Map(prev);
-          if (!newMap.has(concept.name) && data.gifs && data.gifs.length > 0) {
-            newMap.set(concept.name, data.gifs.slice(0, 2));
-          }
-          return newMap;
-        });
+        // Only set GIFs if we actually got results
+        if (data.gifs && data.gifs.length > 0) {
+          setGifs((prev) => {
+            const newMap = new Map(prev);
+            if (!newMap.has(concept.name)) {
+              newMap.set(concept.name, data.gifs.slice(0, 2));
+            }
+            return newMap;
+          });
+        }
       }
     } catch (error) {
       console.error('GIF fetch error:', error);
