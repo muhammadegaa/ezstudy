@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
 
-// AI-powered concept extraction - intelligently identifies concepts that NEED visual aids
-// Uses free AI services to understand context and determine what's actually visualizable
+// AI-powered concept extraction using OpenRouter
+// Intelligently identifies concepts that NEED visual aids
+
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 const COMMON_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
@@ -17,86 +20,92 @@ async function analyzeWithAI(transcript: string): Promise<Array<{
   searchTerms: string[];
   needsVisual: boolean;
 }>> {
-  // Use free AI service to intelligently identify visualizable concepts
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  
+  if (!apiKey) {
+    console.warn('OpenRouter API key not found, using fallback');
+    return intelligentExtraction(transcript);
+  }
+
   try {
-    const prompt = `You are an AI assistant analyzing academic lecture transcripts. Your task is to identify ONLY concepts that would genuinely benefit from visual aids (animations, diagrams, GIFs).
+    const systemPrompt = `You are an AI assistant analyzing academic lecture transcripts. Your task is to identify ONLY concepts that would genuinely benefit from visual aids (animations, diagrams, GIFs).
 
 CRITICAL RULES:
 - ONLY identify scientific/mathematical concepts that can be VISUALIZED
 - IGNORE common words: "plus", "minus", "showcases", "section", "chapter", "example", "evolution" (unless it's biological evolution)
 - IGNORE abstract concepts that don't need visuals: philosophy, ethics, general theories
 - FOCUS ON: physics laws, chemical reactions, biological processes, mathematical visualizations, scientific phenomena
+- Return ONLY concepts that truly need visual aids
 
-Transcript: "${transcript.substring(0, 1500)}"
+Output format (JSON only):
+{
+  "concepts": [
+    {
+      "name": "Quantum Mechanics",
+      "description": "Physics concept dealing with atomic and subatomic systems",
+      "searchTerms": ["quantum mechanics", "quantum physics"],
+      "needsVisual": true
+    }
+  ]
+}
 
-Return JSON array format:
-[{"name": "Quantum Mechanics", "description": "Physics concept", "searchTerms": ["quantum mechanics"], "needsVisual": true}]
+If NO concepts need visual aids, return: {"concepts": []}`;
 
-If NO concepts need visual aids, return: []`;
+    const userPrompt = `Analyze this lecture transcript and identify concepts that need visual aids:
+
+${transcript.substring(0, 2000)}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    // Try multiple free AI endpoints
-    const endpoints = [
-      'https://api-inference.huggingface.co/models/google/flan-t5-base',
-      'https://api-inference.huggingface.co/models/microsoft/DialoGPT-small',
-    ];
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            inputs: prompt,
-            parameters: {
-              max_length: 500,
-              return_full_text: false,
-            },
-          }),
-          signal: controller.signal,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          // Try to extract concepts from response
-          if (data && Array.isArray(data) && data[0]) {
-            const text = JSON.stringify(data[0]);
-            const jsonMatch = text.match(/\[[\s\S]*?\]/);
-            if (jsonMatch) {
-              try {
-                const parsed = JSON.parse(jsonMatch[0]);
-                if (Array.isArray(parsed)) {
-                  const filtered = parsed.filter((c: any) => 
-                    c && c.name && c.needsVisual !== false && 
-                    !['plus', 'minus', 'showcases', 'section'].includes(c.name.toLowerCase())
-                  );
-                  if (filtered.length > 0) {
-                    clearTimeout(timeoutId);
-                    return filtered;
-                  }
-                }
-              } catch (e) {
-                // Continue to next endpoint
-              }
-            }
-          }
-        }
-      } catch (e) {
-        continue;
+    const response = await axios.post(
+      OPENROUTER_API_URL,
+      {
+        model: 'openai/gpt-4o-mini', // Fast and cost-effective
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          'X-Title': 'ezstudy',
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        timeout: 10000,
       }
-    }
+    );
 
     clearTimeout(timeoutId);
-  } catch (error) {
-    console.error('AI concept analysis error:', error);
-  }
 
-  // Fallback: Intelligent pattern-based extraction with context awareness
-  return intelligentExtraction(transcript);
+    const content = response.data.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response from OpenRouter');
+    }
+
+    const parsed = JSON.parse(content);
+    const concepts = parsed.concepts || [];
+
+    // Filter out common words and ensure needsVisual is true
+    const filtered = concepts.filter((c: any) => {
+      if (!c || !c.name) return false;
+      const lowerName = c.name.toLowerCase();
+      if (COMMON_WORDS.has(lowerName)) return false;
+      if (c.needsVisual === false) return false;
+      return true;
+    });
+
+    return filtered;
+  } catch (error: any) {
+    console.error('OpenRouter concept analysis error:', error);
+    // Fallback to intelligent extraction
+    return intelligentExtraction(transcript);
+  }
 }
 
 function intelligentExtraction(transcript: string): Array<{
@@ -189,7 +198,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Use AI to intelligently extract concepts that NEED visual aids
+    // Use OpenRouter AI to intelligently extract concepts that NEED visual aids
     const concepts = await analyzeWithAI(transcript);
 
     // Filter to only concepts that need visuals
