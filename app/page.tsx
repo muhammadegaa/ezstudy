@@ -8,6 +8,7 @@ import LanguageToggle from '@/components/LanguageToggle';
 import DocumentUpload from '@/components/DocumentUpload';
 import VoiceInput from '@/components/VoiceInput';
 import SessionHistory from '@/components/SessionHistory';
+import LiveLearningAssistant from '@/components/LiveLearningAssistant';
 import type { Language, Session, Translation } from '@/types';
 
 export default function Home() {
@@ -80,15 +81,10 @@ export default function Home() {
               onLanguageChange={handleLanguageChange}
             />
 
-            <div className="bg-surface rounded-lg p-6 shadow-sm">
-              <VoiceInput
-                onTranscript={(text) => {
-                  // Auto-populate translation panel
-                  const event = new CustomEvent('setInputText', { detail: text });
-                  window.dispatchEvent(event);
-                }}
-              />
-            </div>
+            <LiveLearningAssistant
+              sourceLang={sourceLang}
+              targetLang={targetLang}
+            />
 
             <TranslationPanel
               sourceLang={sourceLang}
