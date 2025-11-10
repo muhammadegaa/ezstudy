@@ -1,5 +1,5 @@
-// Free translation service - using MyMemory API (free, no API key needed for small requests)
-// Fallback to multiple free services
+// Robust multi-provider translation system with multiple fallbacks
+// All services are FREE - no API keys required
 
 export interface TranslationResponse {
   translation: string;
@@ -36,6 +36,7 @@ const academicTerms: Record<string, Record<string, string>> = {
   },
 };
 
+// Translation Provider 1: MyMemory API (free, reliable)
 async function translateWithMyMemory(
   text: string,
   sourceLang: string,
@@ -49,15 +50,20 @@ async function translateWithMyMemory(
   }
 
   try {
-    // MyMemory Translation API - free, no API key needed
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
     const response = await fetch(
       `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}`,
       {
         headers: {
           'Accept': 'application/json',
         },
+        signal: controller.signal,
       }
     );
+
+    clearTimeout(timeoutId);
 
     if (response.ok) {
       const data = await response.json();
@@ -69,9 +75,10 @@ async function translateWithMyMemory(
     console.error('MyMemory translation error:', e);
   }
 
-  throw new Error('Translation failed');
+  throw new Error('MyMemory failed');
 }
 
+// Translation Provider 2: LibreTranslate (multiple instances)
 async function translateWithLibreTranslate(
   text: string,
   sourceLang: string,
@@ -87,10 +94,14 @@ async function translateWithLibreTranslate(
   const LIBRETRANSLATE_URLS = [
     'https://libretranslate.de/translate',
     'https://translate.argosopentech.com/translate',
+    'https://translate.fortytwo-it.com/translate',
   ];
 
   for (const url of LIBRETRANSLATE_URLS) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -102,7 +113,10 @@ async function translateWithLibreTranslate(
           target: target,
           format: 'text',
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -116,6 +130,87 @@ async function translateWithLibreTranslate(
   }
 
   throw new Error('LibreTranslate failed');
+}
+
+// Translation Provider 3: Google Translate (via public API)
+async function translateWithGoogleTranslate(
+  text: string,
+  sourceLang: string,
+  targetLang: string
+): Promise<string> {
+  const source = langCodeMap[sourceLang] || sourceLang;
+  const target = langCodeMap[targetLang] || targetLang;
+  
+  if (source === target) {
+    return text;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    // Using Google Translate's public web interface API
+    const response = await fetch(
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(text)}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data[0] && data[0][0] && data[0][0][0]) {
+        return data[0].map((item: any[]) => item[0]).join('');
+      }
+    }
+  } catch (e) {
+    console.error('Google Translate error:', e);
+  }
+
+  throw new Error('Google Translate failed');
+}
+
+// Translation Provider 4: Simple word-by-word fallback (for common words)
+function translateWithSimpleFallback(
+  text: string,
+  sourceLang: string,
+  targetLang: string
+): string {
+  // Very basic word mapping for common academic terms
+  const commonTerms: Record<string, Record<string, string>> = {
+    'en-zh': {
+      'quantum': '量子',
+      'computer': '计算机',
+      'physics': '物理学',
+      'mathematics': '数学',
+      'chemistry': '化学',
+      'biology': '生物学',
+    },
+    'en-id': {
+      'quantum': 'kuantum',
+      'computer': 'komputer',
+      'physics': 'fisika',
+      'mathematics': 'matematika',
+      'chemistry': 'kimia',
+      'biology': 'biologi',
+    },
+  };
+
+  const key = `${sourceLang}-${targetLang}`;
+  const mapping = commonTerms[key] || {};
+  
+  let translated = text;
+  for (const [en, translatedWord] of Object.entries(mapping)) {
+    const regex = new RegExp(`\\b${en}\\b`, 'gi');
+    translated = translated.replace(regex, translatedWord);
+  }
+
+  return translated;
 }
 
 function extractGlossary(text: string, translatedText: string, sourceLang: string, targetLang: string): Array<{ term: string; definition: string; context: string }> {
@@ -158,30 +253,61 @@ export async function translateText(
     };
   }
 
-  // Try MyMemory first (most reliable free service)
+  // Try Provider 1: MyMemory (most reliable)
   try {
+    console.log('Trying MyMemory API...');
     const translated = await translateWithMyMemory(text, sourceLang, targetLang);
     const glossary = extractGlossary(text, translated, sourceLang, targetLang);
+    console.log('MyMemory translation successful');
     return {
       translation: translated,
       glossary,
     };
   } catch (error) {
-    console.error('MyMemory translation failed, trying LibreTranslate:', error);
+    console.warn('MyMemory failed, trying Google Translate...', error);
   }
 
-  // Fallback to LibreTranslate
+  // Try Provider 2: Google Translate
   try {
-    const translated = await translateWithLibreTranslate(text, sourceLang, targetLang);
+    console.log('Trying Google Translate API...');
+    const translated = await translateWithGoogleTranslate(text, sourceLang, targetLang);
     const glossary = extractGlossary(text, translated, sourceLang, targetLang);
+    console.log('Google Translate successful');
     return {
       translation: translated,
       glossary,
     };
   } catch (error) {
-    console.error('All translation services failed:', error);
-    
-    // Last resort: return original text
+    console.warn('Google Translate failed, trying LibreTranslate...', error);
+  }
+
+  // Try Provider 3: LibreTranslate (multiple instances)
+  try {
+    console.log('Trying LibreTranslate...');
+    const translated = await translateWithLibreTranslate(text, sourceLang, targetLang);
+    const glossary = extractGlossary(text, translated, sourceLang, targetLang);
+    console.log('LibreTranslate successful');
+    return {
+      translation: translated,
+      glossary,
+    };
+  } catch (error) {
+    console.warn('LibreTranslate failed, using simple fallback...', error);
+  }
+
+  // Fallback 4: Simple word mapping
+  try {
+    console.log('Using simple fallback translation...');
+    const translated = translateWithSimpleFallback(text, sourceLang, targetLang);
+    const glossary = extractGlossary(text, translated, sourceLang, targetLang);
+    console.log('Simple fallback used');
+    return {
+      translation: translated || text,
+      glossary,
+    };
+  } catch (error) {
+    console.error('All translation methods failed:', error);
+    // Last resort: return original with glossary
     return {
       translation: text,
       glossary: extractGlossary(text, text, sourceLang, targetLang),

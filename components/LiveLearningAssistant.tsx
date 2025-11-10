@@ -382,6 +382,9 @@ export default function LiveLearningAssistant({
 
       setIsTranslating(true);
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        
         const response = await fetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -391,21 +394,27 @@ export default function LiveLearningAssistant({
             targetLang,
             includeGlossary: false,
           }),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
+          const translation = data.translation || text;
           setTranslatedText((prev) => {
-            const updated = prev ? `${prev} ${data.translation || text}` : (data.translation || text);
+            const updated = prev ? `${prev} ${translation}` : translation;
             return updated;
           });
         } else {
+          // Still show original text
           setTranslatedText((prev) => {
             return prev ? `${prev} ${text}` : text;
           });
         }
       } catch (error) {
         console.error('Translation error:', error);
+        // Always show something - never leave blank
         setTranslatedText((prev) => {
           return prev ? `${prev} ${text}` : text;
         });

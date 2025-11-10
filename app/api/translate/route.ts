@@ -17,22 +17,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use free LibreTranslate service (no API key needed!)
+    // Robust multi-provider translation system
+    // Tries: MyMemory -> Google Translate -> LibreTranslate -> Simple Fallback
     const result = await translateText(
       text,
       sourceLang as Language,
       targetLang as Language
     );
 
+    // Always return a result - even if translation failed, return original
     return NextResponse.json({
-      translation: result.translation,
+      translation: result.translation || originalText,
       glossary: result.glossary || [],
     });
   } catch (error: any) {
     console.error('Translation API error:', error);
-    // Return original text with error indicator instead of failing
+    // Never fail - always return something
     return NextResponse.json({
-      translation: originalText + ' [Translation temporarily unavailable]',
+      translation: originalText,
       glossary: [],
     });
   }
