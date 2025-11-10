@@ -10,11 +10,16 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 - Voice input/output support
 - User-friendly mobile/web interface with language preference toggles
 - Session history with export options
+- **Live video tutoring sessions** with HD video/audio conferencing
+- Screen sharing for presentations and document review
+- Real-time chat during tutoring sessions
+- Integrated translation support during calls
 
 ## Tech Stack
 
 - Next.js 14+ with React and TypeScript
 - OpenRouter API for translation and glossary
+- Daily.co for video conferencing and tutoring sessions
 - Tailwind CSS for styling
 - Web Speech API for voice support
 
@@ -30,13 +35,17 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and add your OpenRouter API key:
+Edit `.env` and add your API keys:
 ```
 OPENROUTER_API_KEY=your_api_key_here
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+DAILY_API_KEY=your_daily_api_key_here
+NEXT_PUBLIC_DAILY_DOMAIN=your_domain.daily.co
 ```
 
-Get your API key from [OpenRouter](https://openrouter.ai/keys)
+Get your API keys from:
+- [OpenRouter](https://openrouter.ai/keys) - for translation
+- [Daily.co](https://dashboard.daily.co/) - for video conferencing (free tier available)
 
 3. Run the development server:
 ```bash
@@ -68,6 +77,19 @@ npm run dev
 - Click on a session to view details
 - Export sessions as text files
 - Delete sessions you no longer need
+
+### Live Tutoring Sessions
+1. Click "Start Tutoring" from the main page
+2. Create a new room or join an existing one by entering a room name
+3. Share the room name with your tutor/student to join
+4. Features available during sessions:
+   - HD video and audio conferencing
+   - Screen sharing for presentations
+   - Real-time chat messaging
+   - Integrated translation panel
+   - Mute/unmute audio and video controls
+5. Use the translation features during calls to translate academic terms
+6. Click "Leave" to exit the session
 
 ## Sample Lecture Texts
 
@@ -124,6 +146,8 @@ vercel --prod
 Make sure to add these environment variables in your Vercel project settings:
 - `OPENROUTER_API_KEY` - Your OpenRouter API key (required)
 - `NEXT_PUBLIC_APP_URL` - Your Vercel deployment URL (auto-set, but can be manually configured)
+- `DAILY_API_KEY` - Your Daily.co API key (required for tutoring features)
+- `NEXT_PUBLIC_DAILY_DOMAIN` - Your Daily.co domain (e.g., `ezstudy.daily.co`)
 
 ## Project Structure
 

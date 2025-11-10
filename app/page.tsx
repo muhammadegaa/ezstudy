@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Video } from 'lucide-react';
 import TranslationPanel from '@/components/TranslationPanel';
 import LanguageToggle from '@/components/LanguageToggle';
 import DocumentUpload from '@/components/DocumentUpload';
@@ -53,10 +55,21 @@ export default function Home() {
     <main className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <header className="mb-8">
-          <h1 className="text-4xl font-bold text-text mb-2">ezstudy</h1>
-          <p className="text-accent">
-            Academic Translation & Learning Companion for Chinese and Indonesian Students
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-4xl font-bold text-text mb-2">ezstudy</h1>
+              <p className="text-accent">
+                Academic Translation & Learning Companion for Chinese and Indonesian Students
+              </p>
+            </div>
+            <Link
+              href="/tutoring"
+              className="px-6 py-3 bg-accent text-background rounded-lg hover:bg-opacity-80 transition-colors flex items-center gap-2"
+            >
+              <Video className="h-5 w-5" />
+              Start Tutoring
+            </Link>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
