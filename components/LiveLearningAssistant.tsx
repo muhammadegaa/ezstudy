@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Loader2, BookOpen, Save, Download, Sparkles, Copy, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Loader2, BookOpen, Save, Download, Sparkles, Copy, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
 import type { Language } from '@/types';
 
 interface Concept {
@@ -22,6 +22,8 @@ interface Note {
   original: string;
   translated: string;
   concepts: string[];
+  enhanced?: string;
+  summary?: string;
 }
 
 interface LiveLearningAssistantProps {
@@ -42,6 +44,8 @@ export default function LiveLearningAssistant({
   const [notes, setNotes] = useState<Note[]>([]);
   const [currentNote, setCurrentNote] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isEnhancingNote, setIsEnhancingNote] = useState(false);
+  const [enhancingNoteId, setEnhancingNoteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
@@ -488,15 +492,100 @@ export default function LiveLearningAssistant({
     setCurrentNote('');
   };
 
+  const enhanceNoteWithAI = async (noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note || note.enhanced) return; // Already enhanced
+
+    setIsEnhancingNote(true);
+    setEnhancingNoteId(noteId);
+
+    try {
+      const response = await fetch('/api/enhance-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          originalText: note.original,
+          translatedText: note.translated,
+          concepts: note.concepts,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === noteId
+              ? { ...n, enhanced: data.enhanced, summary: data.summary }
+              : n
+          )
+        );
+      } else {
+        // Fallback: simple formatting
+        const simpleEnhanced = formatNoteSimply(note.original, note.translated, note.concepts);
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === noteId ? { ...n, enhanced: simpleEnhanced } : n
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Note enhancement error:', error);
+      // Fallback: simple formatting
+      const simpleEnhanced = formatNoteSimply(note.original, note.translated, note.concepts);
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId ? { ...n, enhanced: simpleEnhanced } : n
+        )
+      );
+    } finally {
+      setIsEnhancingNote(false);
+      setEnhancingNoteId(null);
+    }
+  };
+
+  const formatNoteSimply = (original: string, translated: string, concepts: string[]): string => {
+    const lines: string[] = [];
+    const firstSentence = original.split(/[.!?]/)[0].trim();
+    lines.push(`📝 ${firstSentence.substring(0, 100)}${firstSentence.length > 100 ? '...' : ''}`);
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+    if (concepts.length > 0) {
+      lines.push('🔑 Key Concepts:');
+      concepts.forEach(c => lines.push(`  • ${c}`));
+      lines.push('');
+    }
+    lines.push('📌 Main Points:');
+    const sentences = original.split(/[.!?]/).filter(s => s.trim().length > 20);
+    sentences.slice(0, 5).forEach((s, idx) => {
+      lines.push(`  ${idx + 1}. ${s.trim()}`);
+    });
+    lines.push('');
+    if (translated && translated !== original) {
+      lines.push('🌐 Translation:');
+      lines.push(translated.substring(0, 300));
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('📄 Full Text:');
+    lines.push(original);
+    return lines.join('\n');
+  };
+
   const saveNotes = () => {
     const content = notes
       .map((note, idx) => {
-        return `Note ${idx + 1} - ${note.timestamp.toLocaleTimeString()}\n` +
-               `Original: ${note.original}\n` +
-               `Translated: ${note.translated}\n` +
-               `Concepts: ${note.concepts.join(', ')}\n\n`;
+        let noteContent = `Note ${idx + 1} - ${note.timestamp.toLocaleTimeString()}\n`;
+        if (note.enhanced) {
+          noteContent += `\n${note.enhanced}\n`;
+        } else {
+          noteContent += `Original: ${note.original}\n` +
+                         `Translated: ${note.translated}\n` +
+                         `Concepts: ${note.concepts.join(', ')}\n`;
+        }
+        return noteContent;
       })
-      .join('---\n\n');
+      .join('\n---\n\n');
 
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -759,23 +848,68 @@ export default function LiveLearningAssistant({
         </div>
 
         {notes.length > 0 && (
-          <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
+          <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto">
             {notes.map((note) => (
               <div
                 key={note.id}
                 className="bg-gray-50 rounded-lg p-3 border border-gray-200 text-xs"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <CheckCircle2 className="h-3 w-3 text-green-500" />
-                  <span className="text-gray-500 font-medium">
-                    {note.timestamp.toLocaleTimeString()}
-                  </span>
-                </div>
-                <div className="text-gray-900 line-clamp-2">{note.original.substring(0, 100)}...</div>
-                {note.concepts.length > 0 && (
-                  <div className="text-gray-500 mt-1 text-xs">
-                    {note.concepts.slice(0, 3).join(' • ')}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <span className="text-gray-500 font-medium">
+                      {note.timestamp.toLocaleTimeString()}
+                    </span>
                   </div>
+                  {!note.enhanced && (
+                    <button
+                      onClick={() => enhanceNoteWithAI(note.id)}
+                      disabled={isEnhancingNote && enhancingNoteId === note.id}
+                      className="px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isEnhancingNote && enhancingNoteId === note.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Enhancing...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-3 w-3" />
+                          Enhance with AI
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                {note.enhanced ? (
+                  <div className="space-y-2">
+                    <div className="text-gray-900 whitespace-pre-wrap text-xs font-medium bg-white p-2 rounded border border-gray-200">
+                      {note.enhanced}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([note.enhanced || ''], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `enhanced-note-${note.id}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                    >
+                      Download Enhanced Note
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-gray-900 line-clamp-2">{note.original.substring(0, 100)}...</div>
+                    {note.concepts.length > 0 && (
+                      <div className="text-gray-500 mt-1 text-xs">
+                        {note.concepts.slice(0, 3).join(' • ')}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}
