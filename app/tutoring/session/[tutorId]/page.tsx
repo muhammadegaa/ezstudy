@@ -32,7 +32,15 @@ export default function TutoringSessionPage() {
   const router = useRouter();
   const params = useParams();
   const tutorId = params?.tutorId as string;
-  const tutor = MOCK_TUTORS[tutorId] || { name: 'Tutor', subjects: [], languages: [] };
+  
+  // Check if this is a tutor-created session (starts with "tutor-")
+  const isTutorSession = tutorId.startsWith('tutor-');
+  const userRole = typeof window !== 'undefined' ? localStorage.getItem('ezstudy_user_role') : null;
+  
+  // For tutor sessions, use tutor's own info
+  const tutor = isTutorSession 
+    ? { name: 'You (Tutor)', subjects: ['General'], languages: ['English'] }
+    : MOCK_TUTORS[tutorId] || { name: 'Tutor', subjects: [], languages: [] };
 
   const [myId, setMyId] = useState('');
   const [remotePeerId, setRemotePeerId] = useState('');
@@ -472,7 +480,7 @@ export default function TutoringSessionPage() {
               {/* Your Peer ID */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Your Peer ID (share this with {tutor.name}):
+                  Your Peer ID {isTutorSession ? '(share this with students)' : `(share this with ${tutor.name})`}:
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -507,7 +515,9 @@ export default function TutoringSessionPage() {
               {/* Connect to Peer ID */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Enter {tutor.name}&apos;s Peer ID to connect:
+                  {isTutorSession 
+                    ? "Enter student's Peer ID to connect:" 
+                    : `Enter ${tutor.name}'s Peer ID to connect:`}
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -541,7 +551,9 @@ export default function TutoringSessionPage() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Ask {tutor.name} for their Peer ID and enter it above
+                  {isTutorSession 
+                    ? 'Ask the student for their Peer ID and enter it above'
+                    : `Ask ${tutor.name} for their Peer ID and enter it above`}
                 </p>
               </div>
 
@@ -590,7 +602,7 @@ export default function TutoringSessionPage() {
                       </div>
                     )}
                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
-                      {tutor.name}
+                      {isTutorSession ? 'Student' : tutor.name}
                     </div>
                   </div>
                 </div>

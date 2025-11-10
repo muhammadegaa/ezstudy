@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, User, GraduationCap, Star, Video, ArrowRight, Sparkles, Globe } from 'lucide-react';
+import { Search, User, GraduationCap, Star, Video, ArrowRight, Sparkles, Globe, Calendar, Clock, Users as UsersIcon, Settings, Plus } from 'lucide-react';
 import Link from 'next/link';
 
 interface Tutor {
@@ -16,6 +16,17 @@ interface Tutor {
   bio: string;
   available: boolean;
   avatar?: string;
+}
+
+interface Session {
+  id: string;
+  studentName: string;
+  tutorId: string;
+  tutorName: string;
+  subject: string;
+  status: 'pending' | 'active' | 'completed';
+  scheduledTime?: Date;
+  peerId?: string;
 }
 
 const MOCK_TUTORS: Tutor[] = [
@@ -225,6 +236,8 @@ export default function TutoringPage() {
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [userRole, setUserRole] = useState<'tutor' | 'student' | null>(null);
+  const [tutorSessions, setTutorSessions] = useState<Session[]>([]);
+  const [activeTab, setActiveTab] = useState<'sessions' | 'profile'>('sessions');
 
   const subjects = Array.from(new Set(MOCK_TUTORS.flatMap(t => t.subjects)));
   const languages = Array.from(new Set(MOCK_TUTORS.flatMap(t => t.languages)));
@@ -243,13 +256,47 @@ export default function TutoringPage() {
     if (savedRole === 'tutor' || savedRole === 'student') {
       setUserRole(savedRole as 'tutor' | 'student');
     }
+
+    // Load tutor sessions from localStorage
+    if (savedRole === 'tutor') {
+      const savedSessions = localStorage.getItem('ezstudy_tutor_sessions');
+      if (savedSessions) {
+        try {
+          const parsed = JSON.parse(savedSessions);
+          setTutorSessions(parsed.map((s: any) => ({
+            ...s,
+            scheduledTime: s.scheduledTime ? new Date(s.scheduledTime) : undefined,
+          })));
+        } catch (e) {
+          console.error('Failed to load tutor sessions:', e);
+        }
+      }
+    }
   }, []);
+
+  const createTutorSession = () => {
+    const newSession: Session = {
+      id: Date.now().toString(),
+      studentName: 'Waiting for student...',
+      tutorId: 'current-tutor',
+      tutorName: 'You',
+      subject: 'General',
+      status: 'pending',
+    };
+    const updated = [newSession, ...tutorSessions];
+    setTutorSessions(updated);
+    localStorage.setItem('ezstudy_tutor_sessions', JSON.stringify(updated));
+    router.push(`/tutoring/session/tutor-${newSession.id}`);
+  };
+
+  const joinSessionAsTutor = (sessionId: string) => {
+    router.push(`/tutoring/session/tutor-${sessionId}`);
+  };
 
   if (!userRole) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
         <div className="container mx-auto px-6 py-20 max-w-5xl">
-          {/* Professional Header */}
           <header className="mb-16 text-center animate-fade-in">
             <div className="flex items-center justify-center gap-3 mb-6">
               <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center shadow-xl">
@@ -267,7 +314,6 @@ export default function TutoringPage() {
             </p>
           </header>
 
-          {/* Role Selection Cards */}
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             <div
               onClick={() => {
@@ -319,12 +365,17 @@ export default function TutoringPage() {
   if (userRole === 'tutor') {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <div className="container mx-auto px-6 py-12 max-w-6xl">
-          <header className="mb-12">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-4xl font-bold text-gray-900 mb-2">Tutor Dashboard</h1>
-                <p className="text-gray-600">Manage your tutoring sessions and help students succeed</p>
+        <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
+          <div className="container mx-auto px-6 py-4 max-w-7xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <User className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Tutor Dashboard</h1>
+                  <p className="text-xs text-gray-500 font-medium">Manage your tutoring sessions</p>
+                </div>
               </div>
               <div className="flex gap-3">
                 <button
@@ -332,51 +383,205 @@ export default function TutoringPage() {
                     setUserRole(null);
                     localStorage.removeItem('ezstudy_user_role');
                   }}
-                  className="px-5 py-2.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold shadow-sm"
+                  className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm"
                 >
                   Switch Role
                 </button>
                 <Link
                   href="/"
-                  className="px-5 py-2.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold shadow-sm"
+                  className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm"
                 >
                   Back to Home
                 </Link>
               </div>
             </div>
+          </div>
+        </header>
 
+        <div className="container mx-auto px-6 py-12 max-w-7xl">
+          {/* Tabs */}
+          <div className="flex gap-4 mb-8 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('sessions')}
+              className={`px-6 py-3 font-semibold transition-all border-b-2 ${
+                activeTab === 'sessions'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Sessions
+            </button>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`px-6 py-3 font-semibold transition-all border-b-2 ${
+                activeTab === 'profile'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Profile
+            </button>
+          </div>
+
+          {activeTab === 'sessions' && (
+            <div className="space-y-6">
+              {/* Create Session Button */}
+              <div className="card">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">Start a Session</h2>
+                    <p className="text-gray-600 text-sm">Create a new tutoring session and share your Peer ID with students</p>
+                  </div>
+                  <button
+                    onClick={createTutorSession}
+                    className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <Plus className="h-5 w-5" />
+                    New Session
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Sessions */}
+              {tutorSessions.length > 0 ? (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-gray-900">Your Sessions</h3>
+                  {tutorSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="card card-hover"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                            <Video className="h-6 w-6 text-primary-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900">
+                              {session.studentName === 'Waiting for student...' ? 'Waiting for student...' : `Session with ${session.studentName}`}
+                            </h4>
+                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-4 w-4" />
+                                {session.status === 'pending' ? 'Pending' : session.status === 'active' ? 'Active' : 'Completed'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <UsersIcon className="h-4 w-4" />
+                                {session.subject}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-3">
+                          {session.status === 'pending' && (
+                            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full">
+                              Waiting
+                            </span>
+                          )}
+                          {session.status === 'active' && (
+                            <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
+                              Active
+                            </span>
+                          )}
+                          <button
+                            onClick={() => joinSessionAsTutor(session.id)}
+                            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 shadow-md hover:shadow-lg"
+                          >
+                            <Video className="h-4 w-4" />
+                            {session.status === 'pending' ? 'Start' : 'Join'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="card text-center py-12">
+                  <Video className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">No Sessions Yet</h3>
+                  <p className="text-gray-600 mb-6">Create your first tutoring session to get started</p>
+                  <button
+                    onClick={createTutorSession}
+                    className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl"
+                  >
+                    <Plus className="h-5 w-5" />
+                    Create Session
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'profile' && (
             <div className="card">
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-                  <User className="h-6 w-6 text-primary-600" />
+                <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  T
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Tutor Features Coming Soon</h2>
-                  <p className="text-gray-600">We&apos;re building powerful tools for tutors</p>
+                  <h2 className="text-2xl font-bold text-gray-900">Your Tutor Profile</h2>
+                  <p className="text-gray-600">Manage your profile and availability</p>
                 </div>
               </div>
-              
-              <div className="grid md:grid-cols-2 gap-4 mb-8">
-                {[
-                  'Create your tutor profile',
-                  'Set your availability and pricing',
-                  'Accept session requests from students',
-                  'Conduct video sessions with integrated translation tools',
-                ].map((feature, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                    <div className="w-2 h-2 bg-primary-600 rounded-full"></div>
-                    <span className="text-gray-700 font-medium">{feature}</span>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Your Name</label>
+                    <input
+                      type="text"
+                      defaultValue="Your Name"
+                      className="input"
+                    />
                   </div>
-                ))}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Subjects</label>
+                    <input
+                      type="text"
+                      defaultValue="Mathematics, Physics, Chemistry"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Languages</label>
+                    <input
+                      type="text"
+                      defaultValue="English, Mandarin"
+                      className="input"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Hourly Rate ($)</label>
+                    <input
+                      type="number"
+                      defaultValue="30"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bio</label>
+                    <textarea
+                      rows={4}
+                      defaultValue="Experienced tutor with expertise in multiple subjects..."
+                      className="input resize-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="available" defaultChecked className="w-4 h-4 text-primary-600 rounded" />
+                    <label htmlFor="available" className="text-sm font-medium text-gray-700">Available for sessions</label>
+                  </div>
+                </div>
               </div>
-              
-              <div className="p-5 bg-primary-50 rounded-xl border border-primary-200">
-                <p className="text-primary-900 text-sm font-medium">
-                  💡 For now, you can test the tutoring experience by selecting &quot;I&apos;m a Student&quot; and browsing available tutors.
-                </p>
+
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <button className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-md hover:shadow-lg">
+                  Save Profile
+                </button>
               </div>
             </div>
-          </header>
+          )}
         </div>
       </main>
     );
@@ -385,7 +590,6 @@ export default function TutoringPage() {
   // Student view - Browse tutors
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Professional Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
         <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
@@ -420,7 +624,6 @@ export default function TutoringPage() {
       </header>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
-        {/* Search and Filters */}
         <div className="card mb-8">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -456,7 +659,6 @@ export default function TutoringPage() {
           </div>
         </div>
 
-        {/* Tutors Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTutors.map(tutor => (
             <div
