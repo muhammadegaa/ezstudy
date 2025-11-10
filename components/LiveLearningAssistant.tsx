@@ -193,7 +193,7 @@ export default function LiveLearningAssistant({
         // Concepts can be slightly delayed (not critical for speed)
         setTimeout(() => {
           analyzeConceptsInRealTime.current(finalText.trim());
-        }, 100);
+        }, 50);
       }
     };
 
@@ -392,7 +392,7 @@ export default function LiveLearningAssistant({
       setIsTranslating(true);
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // Reduced timeout for speed
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // Ultra-fast timeout for speech-speed
         
         // Optimized fetch with no-cache for fastest response
         const response = await fetch('/api/translate', {
@@ -651,10 +651,10 @@ export default function LiveLearningAssistant({
 
   return (
     <div className="space-y-6">
-      {/* Main Translation Interface - YC-Worthy Design */}
-      <div className="card overflow-hidden">
+      {/* Main Translation Interface - Production-Grade Design */}
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden">
         {/* Professional Header */}
-        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className="px-6 py-4 border-b border-gray-100 bg-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -741,11 +741,11 @@ export default function LiveLearningAssistant({
                 }
                 
                 if (text.trim()) {
-                  // Ultra-fast translation - 200ms debounce for speech-speed translation
+                  // Ultra-fast translation - 100ms debounce for near-instant speech-speed translation
                   translateTimeoutRef.current = setTimeout(() => {
                     translateInRealTime.current(text.trim());
                     analyzeConceptsInRealTime.current(text.trim());
-                  }, 200);
+                  }, 100);
                 } else {
                   setTranslatedText('');
                 }
@@ -802,16 +802,16 @@ export default function LiveLearningAssistant({
 
       {/* Visual Aids */}
       {concepts.length > 0 && (
-        <div className="card">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200/50 p-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary-600" />
+            <div className="w-11 h-11 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md ring-2 ring-purple-100">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Visual References</h3>
-              <p className="text-xs text-gray-500">Concepts that benefit from visual aids</p>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 tracking-tight">Visual References</h3>
+              <p className="text-xs text-gray-500 font-medium">Concepts that benefit from visual aids</p>
             </div>
-            <span className="ml-auto px-3 py-1 bg-primary-100 text-primary-700 text-xs font-bold rounded-full">
+            <span className="px-3 py-1.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full border border-purple-200">
               {concepts.length}
             </span>
           </div>
@@ -849,18 +849,18 @@ export default function LiveLearningAssistant({
       )}
 
       {/* Notes */}
-      <div className="card">
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200/50 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-              <BookOpen className="h-5 w-5 text-gray-700" />
+            <div className="w-11 h-11 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-md ring-2 ring-amber-100">
+              <BookOpen className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Notes</h3>
-              <p className="text-xs text-gray-500">AI-powered note enhancement</p>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 tracking-tight">Notes</h3>
+              <p className="text-xs text-gray-500 font-medium">AI-powered note enhancement</p>
             </div>
             {notes.length > 0 && (
-              <span className="ml-auto px-3 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-full">
+              <span className="px-3 py-1.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full border border-amber-200">
                 {notes.length}
               </span>
             )}
@@ -868,7 +868,7 @@ export default function LiveLearningAssistant({
           {notes.length > 0 && (
             <button
               onClick={saveNotes}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md"
+              className="px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-all flex items-center gap-2 text-sm font-semibold border border-gray-200 shadow-sm hover:shadow-md"
             >
               <Download className="h-4 w-4" />
               Export All
@@ -886,7 +886,7 @@ export default function LiveLearningAssistant({
           />
           <button
             onClick={addNote}
-            className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-[1.02]"
+            className="w-full px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-[1.02]"
           >
             <Save className="h-4 w-4" />
             Save Note
@@ -898,7 +898,7 @@ export default function LiveLearningAssistant({
             {notes.map((note) => (
               <div
                 key={note.id}
-                className="bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-primary-300 transition-all"
+                className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-primary-400 transition-all shadow-sm hover:shadow-md"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -911,7 +911,7 @@ export default function LiveLearningAssistant({
                     <button
                       onClick={() => enhanceNoteWithAI(note.id)}
                       disabled={isEnhancingNote && enhancingNoteId === note.id}
-                      className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-primary-200"
+                      className="px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-purple-200 shadow-sm hover:shadow-md"
                     >
                       {isEnhancingNote && enhancingNoteId === note.id ? (
                         <>
@@ -928,9 +928,30 @@ export default function LiveLearningAssistant({
                   )}
                 </div>
                 {note.enhanced ? (
-                  <div className="space-y-3">
-                    <div className="text-gray-900 whitespace-pre-wrap text-sm font-medium bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border border-gray-200 leading-relaxed">
-                      {note.enhanced}
+                  <div className="space-y-4">
+                    {/* Professional formatted note display */}
+                    <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 rounded-xl border-2 border-gray-200 p-6 shadow-sm">
+                      <div className="font-mono text-xs text-gray-900 whitespace-pre-wrap leading-relaxed">
+                        {note.enhanced.split('\n').map((line, idx) => {
+                          // Style different sections
+                          if (line.includes('═══════════════════════════════════════════════════════════')) {
+                            return <div key={idx} className="text-gray-400 font-bold py-1">{line}</div>;
+                          }
+                          if (line.includes('───────────────────────────────────────────────────────────')) {
+                            return <div key={idx} className="text-gray-300 py-1">{line}</div>;
+                          }
+                          if (line.match(/^[📋🔑📌🌐📄]/)) {
+                            return <div key={idx} className="text-primary-700 font-bold text-sm mt-4 mb-2">{line}</div>;
+                          }
+                          if (line.match(/^\d+\./)) {
+                            return <div key={idx} className="text-gray-800 ml-4 py-0.5">{line}</div>;
+                          }
+                          if (line.trim() === '') {
+                            return <div key={idx} className="h-2"></div>;
+                          }
+                          return <div key={idx} className="text-gray-700 py-0.5">{line}</div>;
+                        })}
+                      </div>
                     </div>
                     <button
                       onClick={() => {
@@ -942,25 +963,32 @@ export default function LiveLearningAssistant({
                         a.click();
                         URL.revokeObjectURL(url);
                       }}
-                      className="text-primary-600 hover:text-primary-700 text-xs font-semibold flex items-center gap-1"
+                      className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-all flex items-center justify-center gap-2 text-sm font-semibold shadow-md hover:shadow-lg"
                     >
-                      <Download className="h-3 w-3" />
-                      Download Enhanced Note
+                      <Download className="h-4 w-4" />
+                      Download Note
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <div className="text-gray-900 text-sm font-medium line-clamp-2 mb-2">{note.original.substring(0, 150)}...</div>
+                  <div className="space-y-3">
+                    <div className="text-gray-900 text-sm font-medium leading-relaxed p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      {note.original.length > 200 ? `${note.original.substring(0, 200)}...` : note.original}
+                    </div>
                     {note.concepts.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {note.concepts.slice(0, 3).map((concept, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-medium rounded-md">
+                      <div className="flex flex-wrap gap-2">
+                        {note.concepts.slice(0, 4).map((concept, idx) => (
+                          <span key={idx} className="px-3 py-1 bg-primary-100 text-primary-700 text-xs font-semibold rounded-lg border border-primary-200">
                             {concept}
                           </span>
                         ))}
+                        {note.concepts.length > 4 && (
+                          <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg">
+                            +{note.concepts.length - 4} more
+                          </span>
+                        )}
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             ))}

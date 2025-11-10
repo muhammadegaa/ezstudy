@@ -108,7 +108,7 @@ async function translateWithMyMemory(
   const translationPromises = chunks.map(async (chunk) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced timeout for speed
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // Ultra-fast timeout for speech-speed
       
       const response = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${source}|${target}`,

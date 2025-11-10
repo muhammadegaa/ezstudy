@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// AI-powered note enhancement using free services
-// Helps format, summarize, and improve notes
+// AI-powered note enhancement with professional formatting
+// Creates structured, well-formatted notes suitable for academic use
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +15,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use Hugging Face Inference API (free tier, no API key needed for public models)
-    // Fallback to simple formatting if API fails
+    // Use Hugging Face Inference API (free tier)
+    // Fallback to intelligent formatting if API fails
+    
+    let summary: string | null = null;
     
     try {
       const response = await fetch(
@@ -27,10 +29,10 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            inputs: originalText.substring(0, 1000), // Limit to 1000 chars
+            inputs: originalText.substring(0, 1000),
             parameters: {
-              max_length: 200,
-              min_length: 50,
+              max_length: 150,
+              min_length: 40,
             },
           }),
         }
@@ -39,106 +41,121 @@ export async function POST(request: NextRequest) {
       if (response.ok) {
         const data = await response.json();
         if (data && data[0] && data[0].summary_text) {
-          const summary = data[0].summary_text;
-          
-          // Format the enhanced note
-          const enhancedNote = formatNote(originalText, translatedText, concepts, summary);
-          
-          return NextResponse.json({
-            enhanced: enhancedNote,
-            summary: summary,
-          });
+          summary = data[0].summary_text;
         }
       }
     } catch (error) {
       console.error('Hugging Face API error:', error);
-      // Fallback to simple formatting
+      // Fallback to simple summary
+      summary = generateSimpleSummary(originalText);
     }
 
-    // Fallback: Simple intelligent formatting
-    const enhancedNote = formatNote(originalText, translatedText, concepts);
+    if (!summary) {
+      summary = generateSimpleSummary(originalText);
+    }
+
+    // Format the enhanced note with professional structure
+    const enhancedNote = formatNoteProfessionally(originalText, translatedText, concepts, summary);
     
     return NextResponse.json({
       enhanced: enhancedNote,
-      summary: generateSimpleSummary(originalText),
+      summary: summary,
     });
   } catch (error: any) {
     console.error('Note enhancement error:', error);
-    // Always return something
+    // Always return formatted note
     const { originalText = '', translatedText = '', concepts = [] } = await request.json().catch(() => ({}));
+    const summary = generateSimpleSummary(originalText);
     return NextResponse.json({
-      enhanced: formatNote(originalText, translatedText, concepts),
-      summary: generateSimpleSummary(originalText),
+      enhanced: formatNoteProfessionally(originalText, translatedText, concepts, summary),
+      summary: summary,
     });
   }
 }
 
-function formatNote(
+function formatNoteProfessionally(
   originalText: string,
   translatedText: string,
   concepts: string[],
-  summary?: string
+  summary: string
 ): string {
-  const lines: string[] = [];
+  const sections: string[] = [];
   
-  // Title (first sentence or summary)
-  if (summary) {
-    lines.push(`📝 ${summary}`);
-  } else {
-    const firstSentence = originalText.split(/[.!?]/)[0].trim();
-    lines.push(`📝 ${firstSentence.substring(0, 100)}${firstSentence.length > 100 ? '...' : ''}`);
-  }
+  // Header
+  sections.push('═══════════════════════════════════════════════════════════');
+  sections.push('                        NOTE SUMMARY');
+  sections.push('═══════════════════════════════════════════════════════════');
+  sections.push('');
   
-  lines.push('');
-  lines.push('---');
-  lines.push('');
+  // Summary Section
+  sections.push('📋 SUMMARY');
+  sections.push('───────────────────────────────────────────────────────────');
+  sections.push(summary.trim());
+  sections.push('');
   
-  // Key Concepts
+  // Key Concepts Section
   if (concepts.length > 0) {
-    lines.push('🔑 Key Concepts:');
-    concepts.forEach(concept => {
-      lines.push(`  • ${concept}`);
+    sections.push('🔑 KEY CONCEPTS');
+    sections.push('───────────────────────────────────────────────────────────');
+    concepts.forEach((concept, idx) => {
+      sections.push(`${idx + 1}. ${concept}`);
     });
-    lines.push('');
+    sections.push('');
   }
   
-  // Main Points (extract sentences)
-  const sentences = originalText.split(/[.!?]/).filter(s => s.trim().length > 20);
+  // Main Points Section
+  const sentences = originalText
+    .split(/[.!?]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 15);
+  
   if (sentences.length > 0) {
-    lines.push('📌 Main Points:');
-    sentences.slice(0, 5).forEach((sentence, idx) => {
-      lines.push(`  ${idx + 1}. ${sentence.trim()}`);
+    sections.push('📌 MAIN POINTS');
+    sections.push('───────────────────────────────────────────────────────────');
+    sentences.slice(0, 6).forEach((sentence, idx) => {
+      sections.push(`${idx + 1}. ${sentence}`);
     });
-    lines.push('');
+    if (sentences.length > 6) {
+      sections.push(`   ... and ${sentences.length - 6} more points`);
+    }
+    sections.push('');
   }
   
-  // Translation (if available)
-  if (translatedText && translatedText !== originalText) {
-    lines.push('🌐 Translation:');
-    lines.push(translatedText.substring(0, 300));
-    if (translatedText.length > 300) {
-      lines.push('...');
-    }
-    lines.push('');
+  // Translation Section (if different from original)
+  if (translatedText && translatedText !== originalText && translatedText.trim().length > 0) {
+    sections.push('🌐 TRANSLATION');
+    sections.push('───────────────────────────────────────────────────────────');
+    const translationPreview = translatedText.length > 400 
+      ? translatedText.substring(0, 400) + '...'
+      : translatedText;
+    sections.push(translationPreview);
+    sections.push('');
   }
   
   // Full Text Reference
-  lines.push('---');
-  lines.push('📄 Full Text:');
-  lines.push(originalText);
+  sections.push('═══════════════════════════════════════════════════════════');
+  sections.push('                        FULL TEXT');
+  sections.push('═══════════════════════════════════════════════════════════');
+  sections.push(originalText);
+  sections.push('');
+  sections.push('═══════════════════════════════════════════════════════════');
   
-  return lines.join('\n');
+  return sections.join('\n');
 }
 
 function generateSimpleSummary(text: string): string {
-  const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 10);
+  const sentences = text
+    .split(/[.!?]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 10);
   
   if (sentences.length === 0) {
-    return text.substring(0, 100) + (text.length > 100 ? '...' : '');
+    return text.substring(0, 120).trim() + (text.length > 120 ? '...' : '');
   }
   
-  // Take first 2-3 sentences as summary
+  // Take first 2-3 meaningful sentences as summary
   const summarySentences = sentences.slice(0, 3);
-  return summarySentences.join('. ').substring(0, 200) + (text.length > 200 ? '...' : '');
+  const summary = summarySentences.join('. ').trim();
+  
+  return summary.substring(0, 200).trim() + (summary.length > 200 ? '...' : '');
 }
-
