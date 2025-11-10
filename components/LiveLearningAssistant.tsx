@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Loader2, BookOpen, Save, Download, Sparkles, Copy, CheckCircle2 } from 'lucide-react';
+import { Mic, MicOff, Loader2, BookOpen, Save, Download, Sparkles, Copy, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Language } from '@/types';
 
 interface Concept {
@@ -46,12 +46,11 @@ export default function LiveLearningAssistant({
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [hasMicrophone, setHasMicrophone] = useState<boolean | null>(null);
-  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
-  const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied' | null>(null);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const cumulativeTextRef = useRef('');
   const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const permissionCheckedRef = useRef(false);
 
   // Check browser support
   useEffect(() => {
@@ -61,89 +60,25 @@ export default function LiveLearningAssistant({
     setIsSupported(!!SpeechRecognition);
   }, []);
 
-  // Check microphone permission status on mount
+  // Check if microphone permission is already granted (silent check)
   useEffect(() => {
+    if (permissionCheckedRef.current) return;
+    permissionCheckedRef.current = true;
+
     const checkPermission = async () => {
       try {
-        // Try Permissions API first
-        if (navigator.permissions && navigator.permissions.query) {
-          try {
-            const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-            setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
-            
-            result.onchange = () => {
-              setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
-            };
-          } catch (e) {
-            // Permissions API might not support 'microphone', that's fine
-            // Default to 'prompt' - user hasn't been asked yet
-            setPermissionState('prompt');
-          }
-        } else {
-          // Permissions API not available, default to 'prompt'
-          setPermissionState('prompt');
-        }
-      } catch (e) {
-        // Default to 'prompt' if anything fails
-        setPermissionState('prompt');
+        // Try to get microphone access silently
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        setHasMicrophone(true);
+      } catch (e: any) {
+        // Permission not granted yet, that's fine - will request when user clicks
+        setHasMicrophone(null);
       }
     };
+
     checkPermission();
   }, []);
-
-  // Request microphone permission explicitly BEFORE starting recognition
-  const requestMicrophonePermission = async (): Promise<boolean> => {
-    setIsRequestingPermission(true);
-    setError(null);
-    console.log('🔵 Requesting microphone permission...');
-    
-    try {
-      // Check if getUserMedia is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError('Microphone access not available in this browser.');
-        setIsRequestingPermission(false);
-        setShowPermissionPrompt(false);
-        return false;
-      }
-
-      // Explicitly request microphone permission - THIS TRIGGERS BROWSER DIALOG
-      console.log('🔵 Calling getUserMedia - browser should show permission dialog now...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      console.log('✅ Microphone permission granted!');
-      
-      // Got permission! Stop the stream (we just needed permission)
-      stream.getTracks().forEach(track => track.stop());
-      
-      setHasMicrophone(true);
-      setPermissionState('granted');
-      setIsRequestingPermission(false);
-      setShowPermissionPrompt(false);
-      return true;
-      
-    } catch (err: any) {
-      console.error('❌ Microphone permission error:', err.name, err.message);
-      setIsRequestingPermission(false);
-      
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setPermissionState('denied');
-        setHasMicrophone(false);
-        setError('Microphone permission denied. Please allow microphone access in your browser settings and refresh the page.');
-        setShowPermissionPrompt(false);
-        return false;
-      } else if (err.name === 'NotFoundError') {
-        setHasMicrophone(false);
-        setError('No microphone found. Please connect a microphone.');
-        setShowPermissionPrompt(false);
-        return false;
-      } else {
-        setHasMicrophone(false);
-        setError(`Microphone error: ${err.message || err.name}`);
-        setShowPermissionPrompt(false);
-        return false;
-      }
-    }
-  };
 
   useEffect(() => {
     if (!isActive) {
@@ -155,14 +90,6 @@ export default function LiveLearningAssistant({
         }
         recognitionRef.current = null;
       }
-      return;
-    }
-
-    // CRITICAL: Don't start recognition unless permission is granted
-    if (permissionState !== 'granted' && hasMicrophone !== true) {
-      console.log('Waiting for microphone permission...');
-      setIsActive(false);
-      setShowPermissionPrompt(true);
       return;
     }
 
@@ -197,7 +124,6 @@ export default function LiveLearningAssistant({
       setError(null);
       setIsRequestingPermission(false);
       setHasMicrophone(true);
-      console.log('✅ Speech recognition started - microphone working!');
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -217,11 +143,9 @@ export default function LiveLearningAssistant({
       cumulativeTextRef.current = cumulativeTextRef.current + ' ' + finalText;
       setSpeechText(cumulativeTextRef.current.trim() + ' ' + interimText);
       
-      // Update main text area too
       const combinedText = cumulativeTextRef.current.trim() + ' ' + interimText;
       setOriginalText(combinedText);
 
-      // Real-time translation for final results
       if (finalText.trim()) {
         translateInRealTime(finalText.trim());
         analyzeConceptsInRealTime(finalText.trim());
@@ -229,16 +153,15 @@ export default function LiveLearningAssistant({
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
       setIsRequestingPermission(false);
       
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setError('Microphone permission denied. Please allow microphone access in browser settings and refresh.');
+        setError('Microphone permission denied. Click the microphone icon in your browser address bar to allow access.');
         setHasMicrophone(false);
         setIsActive(false);
       } else if (event.error === 'no-speech') {
-        // Normal - no speech detected, restart silently
-        setHasMicrophone(true); // Microphone is working, just no speech
+        // Normal - restart silently
+        setHasMicrophone(true);
         if (isActive && recognitionRef.current) {
           setTimeout(() => {
             try {
@@ -246,24 +169,22 @@ export default function LiveLearningAssistant({
                 recognitionRef.current.start();
               }
             } catch (e) {
-              console.error('Failed to restart:', e);
+              // Ignore
             }
           }, 1000);
         }
       } else if (event.error === 'aborted') {
-        // User stopped, ignore
-        setHasMicrophone(true); // Microphone was working
+        setHasMicrophone(true);
       } else if (event.error === 'audio-capture') {
-        setError('Microphone not found or not working. Please connect a microphone.');
+        setError('Microphone not found. Please connect a microphone.');
         setHasMicrophone(false);
         setIsActive(false);
       } else if (event.error === 'network') {
-        setError('Network error. Please check your internet connection.');
-        setHasMicrophone(true); // Microphone is fine, network issue
+        setError('Network error. Please check your connection.');
+        setHasMicrophone(true);
         setIsActive(false);
       } else {
-        // For other errors, try to restart
-        setHasMicrophone(true); // Assume microphone is fine
+        setHasMicrophone(true);
         if (isActive && recognitionRef.current && event.error !== 'bad-grammar' && event.error !== 'language-not-supported') {
           setTimeout(() => {
             try {
@@ -271,7 +192,7 @@ export default function LiveLearningAssistant({
                 recognitionRef.current.start();
               }
             } catch (e) {
-              console.error('Failed to restart after error:', e);
+              // Ignore
             }
           }, 1000);
         }
@@ -287,7 +208,6 @@ export default function LiveLearningAssistant({
               recognitionRef.current.start();
             }
           } catch (e) {
-            console.error('Failed to restart recognition:', e);
             setIsActive(false);
           }
         }, 300);
@@ -296,31 +216,23 @@ export default function LiveLearningAssistant({
 
     recognitionRef.current = recognition;
     
-    // Start recognition - permission MUST be granted at this point
     setIsRequestingPermission(true);
-    
-    // Small delay to ensure permission state is synced
     setTimeout(() => {
       if (!isActive || !recognitionRef.current) return;
       
       try {
         recognitionRef.current.start();
-        console.log('✅ Speech recognition started');
         setHasMicrophone(true);
       } catch (e: any) {
-        console.error('Failed to start recognition:', e);
         setIsRequestingPermission(false);
         if (e.message && e.message.includes('already started')) {
-          console.log('Recognition already running');
           setHasMicrophone(true);
         } else if (e.message && e.message.includes('not-allowed') || e.name === 'NotAllowedError') {
-          setError('Microphone permission denied. Please allow microphone access.');
+          setError('Microphone permission denied. Click the microphone icon in your browser address bar to allow access.');
           setHasMicrophone(false);
-          setPermissionState('denied');
           setIsActive(false);
-          setShowPermissionPrompt(true);
         } else {
-          setError(`Failed to start listening: ${e.message || 'Unknown error'}`);
+          setError(`Failed to start: ${e.message || 'Unknown error'}`);
           setHasMicrophone(false);
           setIsActive(false);
         }
@@ -337,13 +249,16 @@ export default function LiveLearningAssistant({
         recognitionRef.current = null;
       }
     };
-  }, [isActive, sourceLang, targetLang, isSupported, permissionState, hasMicrophone]);
+  }, [isActive, sourceLang, targetLang, isSupported]);
 
   const translateInRealTime = async (text: string) => {
     if (!text.trim()) return;
     
     if (sourceLang === targetLang) {
-      setTranslatedText(text);
+      setTranslatedText((prev) => {
+        const updated = prev ? `${prev} ${text}` : text;
+        return updated;
+      });
       return;
     }
 
@@ -366,9 +281,6 @@ export default function LiveLearningAssistant({
           const updated = prev ? `${prev} ${data.translation}` : data.translation;
           return updated;
         });
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Translation failed:', errorData);
       }
     } catch (error) {
       console.error('Translation error:', error);
@@ -462,14 +374,6 @@ export default function LiveLearningAssistant({
 
   const handleToggle = async () => {
     if (!isActive) {
-      // ALWAYS show permission prompt first if not granted
-      if (permissionState !== 'granted' && hasMicrophone !== true) {
-        setShowPermissionPrompt(true);
-        setError(null);
-        return;
-      }
-      
-      // Permission is granted, safe to start
       setError(null);
       cumulativeTextRef.current = '';
       setSpeechText('');
@@ -490,64 +394,50 @@ export default function LiveLearningAssistant({
     }
   };
 
-  const handleAllowPermission = async () => {
-    const granted = await requestMicrophonePermission();
-    if (granted) {
-      // Permission granted, now start listening
-      setError(null);
-      cumulativeTextRef.current = '';
-      setSpeechText('');
-      setTranslatedText('');
-      setConcepts([]);
-      setGifs(new Map());
-      setIsActive(true);
-    }
-  };
-
   const copyText = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
+  const langNames = {
+    en: 'English',
+    zh: '中文',
+    id: 'Bahasa Indonesia',
+  };
+
   return (
     <div className="space-y-6">
-      {/* Main Translation Interface - Google Translate Style */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-accent/10 to-accent/5 px-6 py-4 border-b border-gray-200">
+      {/* Main Translation Interface - Production Ready */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Clean Header */}
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent/20 rounded-lg">
-                <Sparkles className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-text">Live Translation</h2>
-                <p className="text-xs text-accent">Real-time speech-to-text translation</p>
-              </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Live Translation</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Real-time speech-to-text translation</p>
             </div>
             
             <button
               onClick={handleToggle}
               disabled={isRequestingPermission || isSupported === false}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg relative ${
+              className={`px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 ${
                 isActive
-                  ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
-                  : 'bg-gradient-to-r from-accent to-accent/90 text-background hover:from-accent/90 hover:to-accent'
-              } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
+                  ? 'bg-red-500 text-white hover:bg-red-600 shadow-sm'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isRequestingPermission ? (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Starting...
                 </>
               ) : isActive ? (
                 <>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full animate-pulse" />
-                  <MicOff className="h-5 w-5" />
-                  Stop Listening
+                  <MicOff className="h-4 w-4" />
+                  Stop
                 </>
               ) : (
                 <>
-                  <Mic className="h-5 w-5" />
+                  <Mic className="h-4 w-4" />
                   Start Listening
                 </>
               )}
@@ -555,74 +445,23 @@ export default function LiveLearningAssistant({
           </div>
         </div>
 
-        {/* Permission Prompt - Production App Style */}
-        {showPermissionPrompt && (
-          <div className="px-6 py-4 bg-blue-50 border-b border-blue-200">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Mic className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-semibold text-blue-900">Microphone Permission Required</h3>
-                </div>
-                <p className="text-sm text-blue-800 mb-3">
-                  ezstudy needs access to your microphone to provide real-time speech translation. 
-                  Click &quot;Allow Microphone&quot; below and then click &quot;Allow&quot; in the browser permission dialog that appears.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleAllowPermission}
-                    disabled={isRequestingPermission}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg"
-                  >
-                    {isRequestingPermission ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Waiting for permission...
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="h-5 w-5" />
-                        Allow Microphone
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowPermissionPrompt(false);
-                      setError(null);
-                    }}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                {isRequestingPermission && (
-                  <p className="text-xs text-blue-700 mt-2">
-                    ⚠️ If you don&apos;t see a browser permission dialog, check your browser&apos;s address bar for a microphone icon.
-                  </p>
-                )}
-              </div>
+        {/* Error Message - Only show if actually needed */}
+        {error && (
+          <div className="px-6 py-3 bg-amber-50 border-b border-amber-100">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-800">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Status Messages */}
-        {error && (
-          <div className="px-6 py-3 bg-yellow-50 border-b border-yellow-200">
-            <p className="text-sm text-yellow-800 flex items-center gap-2">
-              <span className="w-2 h-2 bg-yellow-500 rounded-full" />
-              {error}
-            </p>
-          </div>
-        )}
-
-        {/* Main Translation Area - Google Translate Style */}
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-x divide-gray-200">
-          {/* Source Language */}
+        {/* Translation Area */}
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-x divide-gray-100">
+          {/* Source */}
           <div className="p-6">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-accent uppercase tracking-wide">
-                {sourceLang === 'en' ? 'English' : sourceLang === 'zh' ? '中文' : 'Bahasa Indonesia'}
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {langNames[sourceLang]}
               </span>
               {originalText && (
                 <button
@@ -630,7 +469,7 @@ export default function LiveLearningAssistant({
                   className="p-1.5 hover:bg-gray-100 rounded transition-colors"
                   title="Copy"
                 >
-                  <Copy className="h-4 w-4 text-accent" />
+                  <Copy className="h-4 w-4 text-gray-400" />
                 </button>
               )}
             </div>
@@ -656,25 +495,25 @@ export default function LiveLearningAssistant({
                 }
               }}
               placeholder={isActive ? "Listening... or type here" : "Type or paste text here..."}
-              className="w-full min-h-[300px] text-lg text-text placeholder-gray-400 border-0 focus:outline-none resize-none bg-transparent"
+              className="w-full min-h-[280px] text-base text-gray-900 placeholder-gray-400 border-0 focus:outline-none resize-none bg-transparent"
               rows={12}
             />
             {isActive && speechText && (
-              <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-100">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-xs font-semibold text-green-700">Live Speech</span>
+                  <span className="text-xs font-medium text-green-700">Live Speech</span>
                 </div>
                 <p className="text-sm text-green-800">{speechText}</p>
               </div>
             )}
           </div>
 
-          {/* Target Language */}
-          <div className="p-6 bg-gray-50/50">
+          {/* Target */}
+          <div className="p-6 bg-gray-50/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-accent uppercase tracking-wide">
-                {targetLang === 'en' ? 'English' : targetLang === 'zh' ? '中文' : 'Bahasa Indonesia'}
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {langNames[targetLang]}
               </span>
               {translatedText && (
                 <button
@@ -682,49 +521,49 @@ export default function LiveLearningAssistant({
                   className="p-1.5 hover:bg-gray-100 rounded transition-colors"
                   title="Copy"
                 >
-                  <Copy className="h-4 w-4 text-accent" />
+                  <Copy className="h-4 w-4 text-gray-400" />
                 </button>
               )}
             </div>
-            <div className="min-h-[300px]">
+            <div className="min-h-[280px]">
               {isTranslating ? (
-                <div className="flex items-center gap-2 text-accent">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Translating...</span>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Translating...</span>
                 </div>
               ) : translatedText ? (
-                <p className="text-lg text-text whitespace-pre-wrap leading-relaxed">{translatedText}</p>
+                <p className="text-base text-gray-900 whitespace-pre-wrap leading-relaxed">{translatedText}</p>
               ) : (
-                <p className="text-lg text-gray-400">Translation will appear here...</p>
+                <p className="text-base text-gray-400">Translation will appear here...</p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Visual Aids - Premium Design */}
+      {/* Visual Aids */}
       {concepts.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Sparkles className="h-5 w-5 text-accent" />
-            <h3 className="text-lg font-bold text-text">Visual References</h3>
-            <span className="px-2 py-1 bg-accent/20 text-accent text-xs font-semibold rounded-full">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="h-5 w-5 text-blue-600" />
+            <h3 className="text-base font-semibold text-gray-900">Visual References</h3>
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded">
               {concepts.length}
             </span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {concepts.slice(0, 8).map((concept) => {
               const conceptGifs = gifs.get(concept.name) || [];
               return (
                 <div
                   key={concept.name}
-                  className="bg-gray-50 rounded-xl p-3 border border-gray-200 hover:border-accent/40 hover:shadow-md transition-all cursor-pointer"
+                  className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
                 >
-                  <div className="text-xs font-bold text-text mb-2 line-clamp-2 min-h-[2.5rem]">
+                  <div className="text-xs font-semibold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]">
                     {concept.name}
                   </div>
                   {conceptGifs.length > 0 ? (
-                    <div className="aspect-video rounded-lg overflow-hidden bg-black/10">
+                    <div className="aspect-video rounded overflow-hidden bg-gray-100">
                       <img
                         src={conceptGifs[0].url}
                         alt={concept.name}
@@ -733,8 +572,8 @@ export default function LiveLearningAssistant({
                       />
                     </div>
                   ) : (
-                    <div className="aspect-video rounded-lg bg-accent/10 flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                    <div className="aspect-video rounded bg-gray-100 flex items-center justify-center">
+                      <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
                     </div>
                   )}
                 </div>
@@ -744,14 +583,14 @@ export default function LiveLearningAssistant({
         </div>
       )}
 
-      {/* Notes Section */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
+      {/* Notes */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <BookOpen className="h-5 w-5 text-accent" />
-            <h3 className="text-lg font-bold text-text">Notes</h3>
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-gray-600" />
+            <h3 className="text-base font-semibold text-gray-900">Notes</h3>
             {notes.length > 0 && (
-              <span className="px-2 py-1 bg-accent/20 text-accent text-xs font-semibold rounded-full">
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded">
                 {notes.length}
               </span>
             )}
@@ -759,7 +598,7 @@ export default function LiveLearningAssistant({
           {notes.length > 0 && (
             <button
               onClick={saveNotes}
-              className="px-4 py-2 bg-accent text-background rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm font-medium"
             >
               <Download className="h-4 w-4" />
               Export
@@ -772,12 +611,12 @@ export default function LiveLearningAssistant({
             value={currentNote}
             onChange={(e) => setCurrentNote(e.target.value)}
             placeholder="Add your notes here..."
-            className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 bg-gray-50 text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent resize-none transition-all"
+            className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all"
             rows={3}
           />
           <button
             onClick={addNote}
-            className="w-full px-6 py-3 bg-accent text-background rounded-lg hover:bg-opacity-90 transition-colors font-medium flex items-center justify-center gap-2 shadow-md"
+            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
           >
             <Save className="h-4 w-4" />
             Save Note
@@ -791,15 +630,15 @@ export default function LiveLearningAssistant({
                 key={note.id}
                 className="bg-gray-50 rounded-lg p-3 border border-gray-200 text-xs"
               >
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1">
                   <CheckCircle2 className="h-3 w-3 text-green-500" />
-                  <span className="text-accent font-semibold">
+                  <span className="text-gray-500 font-medium">
                     {note.timestamp.toLocaleTimeString()}
                   </span>
                 </div>
-                <div className="text-text line-clamp-2">{note.original.substring(0, 100)}...</div>
+                <div className="text-gray-900 line-clamp-2">{note.original.substring(0, 100)}...</div>
                 {note.concepts.length > 0 && (
-                  <div className="text-accent mt-1 text-xs">
+                  <div className="text-gray-500 mt-1 text-xs">
                     {note.concepts.slice(0, 3).join(' • ')}
                   </div>
                 )}
