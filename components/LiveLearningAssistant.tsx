@@ -183,8 +183,8 @@ export default function LiveLearningAssistant({
       setOriginalText(combinedText);
 
       if (finalText.trim()) {
-        translateInRealTime(finalText.trim());
-        analyzeConceptsInRealTime(finalText.trim());
+        translateInRealTime.current(finalText.trim());
+        analyzeConceptsInRealTime.current(finalText.trim());
       }
     };
 
@@ -290,7 +290,7 @@ export default function LiveLearningAssistant({
     verifyAndStart();
   }, [isActive, sourceLang, targetLang, isSupported]);
 
-  const translateInRealTime = async (text: string) => {
+  const translateInRealTime = useRef(async (text: string) => {
     if (!text.trim()) return;
     
     if (sourceLang === targetLang) {
@@ -317,18 +317,27 @@ export default function LiveLearningAssistant({
       if (response.ok) {
         const data = await response.json();
         setTranslatedText((prev) => {
-          const updated = prev ? `${prev} ${data.translation}` : data.translation;
+          const updated = prev ? `${prev} ${data.translation || text}` : (data.translation || text);
           return updated;
+        });
+      } else {
+        // Still show something
+        setTranslatedText((prev) => {
+          return prev ? `${prev} ${text}` : text;
         });
       }
     } catch (error) {
       console.error('Translation error:', error);
+      // Show original text if translation fails
+      setTranslatedText((prev) => {
+        return prev ? `${prev} ${text}` : text;
+      });
     } finally {
       setIsTranslating(false);
     }
-  };
+  });
 
-  const analyzeConceptsInRealTime = async (text: string) => {
+  const analyzeConceptsInRealTime = useRef(async (text: string) => {
     if (text.length < 10) return;
 
     try {
@@ -354,8 +363,86 @@ export default function LiveLearningAssistant({
       }
     } catch (error) {
       console.error('Concept analysis error:', error);
+      // Don't break UI - just continue
     }
-  };
+  });
+
+  // Update refs when languages change
+  useEffect(() => {
+    translateInRealTime.current = async (text: string) => {
+      if (!text.trim()) return;
+      
+      if (sourceLang === targetLang) {
+        setTranslatedText((prev) => {
+          const updated = prev ? `${prev} ${text}` : text;
+          return updated;
+        });
+        return;
+      }
+
+      setIsTranslating(true);
+      try {
+        const response = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text.trim(),
+            sourceLang,
+            targetLang,
+            includeGlossary: false,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setTranslatedText((prev) => {
+            const updated = prev ? `${prev} ${data.translation || text}` : (data.translation || text);
+            return updated;
+          });
+        } else {
+          setTranslatedText((prev) => {
+            return prev ? `${prev} ${text}` : text;
+          });
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+        setTranslatedText((prev) => {
+          return prev ? `${prev} ${text}` : text;
+        });
+      } finally {
+        setIsTranslating(false);
+      }
+    };
+
+    analyzeConceptsInRealTime.current = async (text: string) => {
+      if (text.length < 10) return;
+
+      try {
+        const response = await fetch('/api/concepts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript: text }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const newConcepts = data.concepts || [];
+          
+          setConcepts((prev) => {
+            const existingNames = new Set(prev.map(c => c.name));
+            const uniqueNew = newConcepts.filter((c: Concept) => !existingNames.has(c.name));
+            return [...prev, ...uniqueNew];
+          });
+
+          newConcepts.forEach((concept: Concept) => {
+            fetchGifForConcept(concept);
+          });
+        }
+      } catch (error) {
+        console.error('Concept analysis error:', error);
+      }
+    };
+  }, [sourceLang, targetLang]);
 
   const fetchGifForConcept = async (concept: Concept) => {
     try {
@@ -526,8 +613,8 @@ export default function LiveLearningAssistant({
                 
                 if (text.trim()) {
                   translateTimeoutRef.current = setTimeout(() => {
-                    translateInRealTime(text.trim());
-                    analyzeConceptsInRealTime(text.trim());
+                    translateInRealTime.current(text.trim());
+                    analyzeConceptsInRealTime.current(text.trim());
                   }, 800);
                 } else {
                   setTranslatedText('');

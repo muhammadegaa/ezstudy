@@ -1,5 +1,5 @@
-// Free translation service using LibreTranslate (completely free, open source)
-// Fallback to browser translation if LibreTranslate fails
+// Free translation service - using MyMemory API (free, no API key needed for small requests)
+// Fallback to multiple free services
 
 export interface TranslationResponse {
   translation: string;
@@ -9,12 +9,6 @@ export interface TranslationResponse {
     context: string;
   }>;
 }
-
-const LIBRETRANSLATE_URLS = [
-  'https://libretranslate.com/translate',
-  'https://translate.argosopentech.com/translate',
-  'https://translate.fortytwo-it.com/translate',
-];
 
 const langCodeMap: Record<string, string> = {
   en: 'en',
@@ -42,12 +36,59 @@ const academicTerms: Record<string, Record<string, string>> = {
   },
 };
 
+async function translateWithMyMemory(
+  text: string,
+  sourceLang: string,
+  targetLang: string
+): Promise<string> {
+  const source = langCodeMap[sourceLang] || sourceLang;
+  const target = langCodeMap[targetLang] || targetLang;
+  
+  if (source === target) {
+    return text;
+  }
+
+  try {
+    // MyMemory Translation API - free, no API key needed
+    const response = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.responseData && data.responseData.translatedText) {
+        return data.responseData.translatedText;
+      }
+    }
+  } catch (e) {
+    console.error('MyMemory translation error:', e);
+  }
+
+  throw new Error('Translation failed');
+}
+
 async function translateWithLibreTranslate(
   text: string,
   sourceLang: string,
   targetLang: string
 ): Promise<string> {
-  // Try multiple LibreTranslate instances
+  const source = langCodeMap[sourceLang] || sourceLang;
+  const target = langCodeMap[targetLang] || targetLang;
+  
+  if (source === target) {
+    return text;
+  }
+
+  const LIBRETRANSLATE_URLS = [
+    'https://libretranslate.de/translate',
+    'https://translate.argosopentech.com/translate',
+  ];
+
   for (const url of LIBRETRANSLATE_URLS) {
     try {
       const response = await fetch(url, {
@@ -57,28 +98,28 @@ async function translateWithLibreTranslate(
         },
         body: JSON.stringify({
           q: text,
-          source: langCodeMap[sourceLang] || sourceLang,
-          target: langCodeMap[targetLang] || targetLang,
+          source: source,
+          target: target,
           format: 'text',
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        return data.translatedText || text;
+        if (data.translatedText) {
+          return data.translatedText;
+        }
       }
     } catch (e) {
-      // Try next instance
       continue;
     }
   }
 
-  throw new Error('All LibreTranslate instances failed');
+  throw new Error('LibreTranslate failed');
 }
 
 function extractGlossary(text: string, translatedText: string, sourceLang: string, targetLang: string): Array<{ term: string; definition: string; context: string }> {
   const glossary: Array<{ term: string; definition: string; context: string }> = [];
-  const words = text.toLowerCase().split(/\s+/);
   
   // Check for academic terms
   const terms = academicTerms[sourceLang] || {};
@@ -110,23 +151,40 @@ export async function translateText(
     };
   }
 
-  try {
-    // Try LibreTranslate first
-    const translated = await translateWithLibreTranslate(text, sourceLang, targetLang);
-    const glossary = extractGlossary(text, translated, sourceLang, targetLang);
+  if (!text || text.trim().length === 0) {
+    return {
+      translation: '',
+      glossary: [],
+    };
+  }
 
+  // Try MyMemory first (most reliable free service)
+  try {
+    const translated = await translateWithMyMemory(text, sourceLang, targetLang);
+    const glossary = extractGlossary(text, translated, sourceLang, targetLang);
     return {
       translation: translated,
       glossary,
     };
   } catch (error) {
-    console.error('Translation error:', error);
-    
-    // Fallback: Return original text with error message
+    console.error('MyMemory translation failed, trying LibreTranslate:', error);
+  }
+
+  // Fallback to LibreTranslate
+  try {
+    const translated = await translateWithLibreTranslate(text, sourceLang, targetLang);
+    const glossary = extractGlossary(text, translated, sourceLang, targetLang);
     return {
-      translation: text + ' [Translation service unavailable - please try again]',
-      glossary: [],
+      translation: translated,
+      glossary,
+    };
+  } catch (error) {
+    console.error('All translation services failed:', error);
+    
+    // Last resort: return original text
+    return {
+      translation: text,
+      glossary: extractGlossary(text, text, sourceLang, targetLang),
     };
   }
 }
-
