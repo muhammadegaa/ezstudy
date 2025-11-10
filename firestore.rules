@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isTutorOrStudent(session) {
+      return isAuthenticated() && (
+        request.auth.uid == session.data.tutorId ||
+        request.auth.uid == session.data.studentId
+      );
+    }
+
+    // Tutors collection
+    match /tutors/{tutorId} {
+      // Anyone can read tutors (for browsing)
+      allow read: if true;
+      
+      // Only authenticated users can create/update their own tutor profile
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // Sessions collection
+    match /sessions/{sessionId} {
+      // Only tutor or student can read their sessions
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.tutorId ||
+        request.auth.uid == resource.data.studentId
+      );
+      
+      // Students can create sessions
+      allow create: if isAuthenticated() && 
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      
+      // Tutor or student can update their sessions
+      allow update: if isTutorOrStudent(resource);
+      
+      // Tutor or student can delete their sessions
+      allow delete: if isTutorOrStudent(resource);
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

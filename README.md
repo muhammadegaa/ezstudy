@@ -21,10 +21,21 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 ## Tech Stack
 
 - Next.js 14+ with React and TypeScript
-- OpenRouter API for translation and glossary
+- **Firebase** - Authentication (Email/Password) & Firestore Database
 - PeerJS (WebRTC) for free video conferencing - no paid services required!
 - Tailwind CSS for styling
 - Web Speech API for voice support
+- OpenRouter API (optional) for AI concept detection
+
+## Firebase Setup
+
+This app uses Firebase for authentication and data storage. See [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) for complete setup instructions.
+
+**Quick Setup:**
+1. Copy `.env.example` to `.env.local`
+2. Add your Firebase config (see FIREBASE_SETUP.md)
+3. Enable Email/Password auth in Firebase Console
+4. Deploy Firestore rules from `firestore.rules`
 
 ## Getting Started
 
