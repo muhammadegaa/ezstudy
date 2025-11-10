@@ -2,16 +2,22 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Video, VideoOff, Mic, MicOff, Monitor, X, MessageSquare, Send, Users } from 'lucide-react';
-// Daily.co SDK will be loaded via script tag
+import { Video, VideoOff, Mic, MicOff, Monitor, X, MessageSquare, Send, Users, Copy } from 'lucide-react';
 import TranslationPanel from '@/components/TranslationPanel';
 import LanguageToggle from '@/components/LanguageToggle';
 import type { Language, Translation } from '@/types';
 
+interface PeerConnection {
+  peer: any;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  connections: Map<string, RTCPeerConnection>;
+}
+
 export default function TutoringPage() {
   const router = useRouter();
-  const [roomUrl, setRoomUrl] = useState<string | null>(null);
-  const [roomName, setRoomName] = useState('');
+  const [roomId, setRoomId] = useState('');
+  const [myId, setMyId] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -19,176 +25,322 @@ export default function TutoringPage() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; message: string; timestamp: Date }>>([]);
   const [chatInput, setChatInput] = useState('');
-  const [participants, setParticipants] = useState(0);
+  const [participants, setParticipants] = useState(1);
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [targetLang, setTargetLang] = useState<Language>('zh');
   
-  const callFrameRef = useRef<any>(null);
+  const peerRef = useRef<any>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const connectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const dataChannelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
+
+  useEffect(() => {
+    // Load PeerJS
+    if (typeof window !== 'undefined' && !(window as any).Peer) {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
+      script.async = true;
+      script.onload = () => {
+        console.log('PeerJS loaded');
+      };
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  const cleanup = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    connectionsRef.current.forEach(conn => conn.close());
+    connectionsRef.current.clear();
+    dataChannelsRef.current.clear();
+    if (peerRef.current) {
+      peerRef.current.destroy();
+      peerRef.current = null;
+    }
+    setIsInCall(false);
+    setParticipants(1);
+  };
+
+  const getLocalStream = async (video: boolean = true, audio: boolean = true) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: video ? { width: 1280, height: 720 } : false,
+        audio: audio,
+      });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      return stream;
+    } catch (error) {
+      console.error('Error accessing media devices:', error);
+      alert('Could not access camera/microphone. Please check permissions.');
+      throw error;
+    }
+  };
 
   const createRoom = async () => {
-    if (!roomName.trim()) {
+    if (!roomId.trim()) {
       alert('Please enter a room name');
       return;
     }
 
     setIsJoining(true);
     try {
-      const response = await fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', roomName: roomName.trim() }),
+      await initializePeer();
+      await getLocalStream();
+      peerRef.current?.open();
+      
+      // Wait for peer ID
+      await new Promise((resolve) => {
+        const checkPeer = setInterval(() => {
+          if (peerRef.current && peerRef.current.id) {
+            clearInterval(checkPeer);
+            setMyId(peerRef.current.id);
+            resolve(true);
+          }
+        }, 100);
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create room');
-      }
+      setIsInCall(true);
+      setIsJoining(false);
+      setParticipants(1);
 
-      const data = await response.json();
-      setRoomUrl(data.url);
-      joinCall(data.url, data.token);
+      // Listen for incoming connections
+      peerRef.current?.on('connection', (conn: any) => {
+        handleDataConnection(conn);
+        setParticipants(prev => prev + 1);
+      });
+
+      peerRef.current?.on('call', (call: any) => {
+        handleIncomingCall(call);
+        setParticipants(prev => prev + 1);
+      });
     } catch (error: any) {
       alert(error.message || 'Failed to create room');
       setIsJoining(false);
+      cleanup();
     }
   };
 
   const joinRoom = async () => {
-    if (!roomName.trim()) {
+    if (!roomId.trim()) {
       alert('Please enter a room name');
       return;
     }
 
     setIsJoining(true);
     try {
-      const response = await fetch('/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'join', roomName: roomName.trim() }),
+      await initializePeer();
+      await getLocalStream();
+      
+      // Wait for peer ID
+      await new Promise((resolve) => {
+        const checkPeer = setInterval(() => {
+          if (peerRef.current && peerRef.current.id) {
+            clearInterval(checkPeer);
+            setMyId(peerRef.current.id);
+            resolve(true);
+          }
+        }, 100);
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to join room');
+      // Connect to host
+      const conn = peerRef.current?.connect(roomId);
+      if (conn) {
+        handleDataConnection(conn);
       }
 
-      const data = await response.json();
-      joinCall(data.url, data.token);
+      // Call host
+      const call = peerRef.current?.call(roomId, localStreamRef.current!);
+      if (call) {
+        handleOutgoingCall(call);
+      }
+
+      setIsInCall(true);
+      setIsJoining(false);
+      setParticipants(2);
+
+      // Listen for new connections
+      peerRef.current?.on('connection', (conn: any) => {
+        handleDataConnection(conn);
+        setParticipants(prev => prev + 1);
+      });
+
+      peerRef.current?.on('call', (call: any) => {
+        handleIncomingCall(call);
+        setParticipants(prev => prev + 1);
+      });
     } catch (error: any) {
       alert(error.message || 'Failed to join room');
       setIsJoining(false);
+      cleanup();
     }
   };
 
-  const joinCall = (url: string, token?: string) => {
-    if (typeof window === 'undefined' || !window.DailyIframe) {
-      alert('Daily.co SDK not loaded. Please refresh the page.');
-      return;
-    }
+  const initializePeer = () => {
+    return new Promise((resolve, reject) => {
+      if (!(window as any).Peer) {
+        setTimeout(() => initializePeer(), 100);
+        return;
+      }
 
-    const callFrame = window.DailyIframe.createFrame({
-      showLeaveButton: true,
-      iframeStyle: {
-        width: '100%',
-        height: '100%',
-        border: 'none',
-        borderRadius: '8px',
-      },
+      const peer = new (window as any).Peer({
+        host: '0.peerjs.com',
+        port: 443,
+        path: '/',
+        secure: true,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ],
+        },
+      });
+
+      peer.on('open', (id: string) => {
+        setMyId(id);
+        peerRef.current = peer;
+        resolve(true);
+      });
+
+      peer.on('error', (err: any) => {
+        console.error('Peer error:', err);
+        reject(err);
+      });
+
+      setTimeout(() => {
+        if (!peerRef.current) {
+          reject(new Error('Peer initialization timeout'));
+        }
+      }, 10000);
+    });
+  };
+
+  const handleDataConnection = (conn: any) => {
+    conn.on('open', () => {
+      dataChannelsRef.current.set(conn.peer, conn);
     });
 
-    callFrameRef.current = callFrame;
-
-    callFrame
-      .on('joined-meeting', (event: any) => {
-        setIsInCall(true);
-        setIsJoining(false);
-        setParticipants(event.participants ? Object.keys(event.participants).length : 1);
-      })
-      .on('left-meeting', () => {
-        setIsInCall(false);
-        setRoomUrl(null);
-        setParticipants(0);
-        if (callFrame) {
-          callFrame.destroy();
-        }
-      })
-      .on('participant-joined', () => {
-        setParticipants((prev) => prev + 1);
-      })
-      .on('participant-left', () => {
-        setParticipants((prev) => Math.max(0, prev - 1));
-      })
-      .on('app-message', (event: any) => {
-        if (event.data.type === 'chat') {
+    conn.on('data', (data: any) => {
+      try {
+        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        if (parsed.type === 'chat') {
           setChatMessages((prev) => [
             ...prev,
             {
               id: Date.now().toString(),
-              name: event.data.name || 'Anonymous',
-              message: event.data.message,
+              name: parsed.name || 'Peer',
+              message: parsed.message,
               timestamp: new Date(),
             },
           ]);
         }
-      });
+      } catch (e) {
+        console.error('Error parsing chat message:', e);
+      }
+    });
 
-    callFrame.join({ url, token });
-    
-    const container = document.getElementById('video-container');
-    if (container) {
-      container.innerHTML = '';
-      container.appendChild(callFrame.iframe());
-    }
+    conn.on('close', () => {
+      dataChannelsRef.current.delete(conn.peer);
+      setParticipants(prev => Math.max(1, prev - 1));
+    });
+  };
+
+  const handleIncomingCall = (call: any) => {
+    call.answer(localStreamRef.current);
+    call.on('stream', (remoteStream: MediaStream) => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+    });
+  };
+
+  const handleOutgoingCall = (call: any) => {
+    call.on('stream', (remoteStream: MediaStream) => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+    });
   };
 
   const leaveCall = () => {
-    if (callFrameRef.current) {
-      callFrameRef.current.leave();
-      callFrameRef.current.destroy();
-      callFrameRef.current = null;
-    }
-    setIsInCall(false);
-    setRoomUrl(null);
+    cleanup();
   };
 
   const toggleMute = () => {
-    if (callFrameRef.current) {
-      callFrameRef.current.setLocalAudio(!isMuted);
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = isMuted;
+      });
       setIsMuted(!isMuted);
     }
   };
 
   const toggleVideo = () => {
-    if (callFrameRef.current) {
-      callFrameRef.current.setLocalVideo(!isVideoOff);
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = isVideoOff;
+      });
       setIsVideoOff(!isVideoOff);
     }
   };
 
   const toggleScreenShare = async () => {
-    if (callFrameRef.current) {
-      try {
-        if (isScreenSharing) {
-          await callFrameRef.current.stopScreenShare();
-        } else {
-          await callFrameRef.current.startScreenShare();
+    try {
+      if (isScreenSharing) {
+        // Stop screen share and resume camera
+        const stream = await getLocalStream(true, !isMuted);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
         }
-        setIsScreenSharing(!isScreenSharing);
-      } catch (error) {
-        console.error('Screen share error:', error);
+        setIsScreenSharing(false);
+      } else {
+        // Start screen share
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+        
+        stream.getVideoTracks()[0].onended = () => {
+          toggleScreenShare();
+        };
+        
+        setIsScreenSharing(true);
       }
+    } catch (error) {
+      console.error('Screen share error:', error);
+      alert('Screen sharing failed. Please try again.');
     }
   };
 
   const sendChatMessage = () => {
-    if (!chatInput.trim() || !callFrameRef.current) return;
+    if (!chatInput.trim()) return;
 
-    callFrameRef.current.sendAppMessage(
-      {
-        type: 'chat',
-        message: chatInput,
-        name: 'You',
-      },
-      '*'
-    );
+    const message = {
+      type: 'chat',
+      message: chatInput,
+      name: 'You',
+    };
+
+    // Send to all connected peers
+    dataChannelsRef.current.forEach((conn) => {
+      conn.send(JSON.stringify(message));
+    });
 
     setChatMessages((prev) => [
       ...prev,
@@ -203,25 +355,12 @@ export default function TutoringPage() {
     setChatInput('');
   };
 
-  useEffect(() => {
-    // Load Daily.co SDK
-    if (typeof window !== 'undefined' && !window.DailyIframe) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@daily-co/daily-js/dist/daily-iframe.js';
-      script.async = true;
-      script.onload = () => {
-        console.log('Daily.co SDK loaded');
-      };
-      document.head.appendChild(script);
+  const copyRoomId = () => {
+    if (myId) {
+      navigator.clipboard.writeText(myId);
+      alert('Room ID copied to clipboard!');
     }
-
-    return () => {
-      if (callFrameRef.current) {
-        callFrameRef.current.leave();
-        callFrameRef.current.destroy();
-      }
-    };
-  }, []);
+  };
 
   return (
     <main className="min-h-screen bg-background">
@@ -229,7 +368,7 @@ export default function TutoringPage() {
         <header className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold text-text mb-2">ezstudy Tutoring</h1>
-            <p className="text-accent">Live video tutoring with translation support</p>
+            <p className="text-accent">Free WebRTC video tutoring with translation support</p>
           </div>
           <button
             onClick={() => router.push('/')}
@@ -247,13 +386,13 @@ export default function TutoringPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-text mb-2">
-                    Room Name
+                    Room Name / Peer ID
                   </label>
                   <input
                     type="text"
-                    value={roomName}
-                    onChange={(e) => setRoomName(e.target.value)}
-                    placeholder="Enter room name (e.g., math-tutoring-2024)"
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    placeholder="Enter room name or peer ID to join"
                     className="w-full px-4 py-3 rounded border border-accent bg-background text-text focus:outline-none focus:ring-2 focus:ring-accent"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
@@ -261,19 +400,22 @@ export default function TutoringPage() {
                       }
                     }}
                   />
+                  <p className="text-xs text-accent mt-1">
+                    To create: Enter any name. To join: Enter the host&apos;s Peer ID.
+                  </p>
                 </div>
 
                 <div className="flex gap-4">
                   <button
                     onClick={createRoom}
-                    disabled={isJoining || !roomName.trim()}
+                    disabled={isJoining || !roomId.trim()}
                     className="flex-1 px-6 py-3 bg-accent text-background rounded-lg hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {isJoining ? 'Creating...' : 'Create Room'}
                   </button>
                   <button
                     onClick={joinRoom}
-                    disabled={isJoining || !roomName.trim()}
+                    disabled={isJoining || !roomId.trim()}
                     className="flex-1 px-6 py-3 bg-surface text-text rounded-lg border border-accent hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isJoining ? 'Joining...' : 'Join Room'}
@@ -285,7 +427,7 @@ export default function TutoringPage() {
             <div className="bg-surface rounded-lg p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-text mb-4">Features</h3>
               <ul className="space-y-2 text-sm text-text">
-                <li>✓ HD video and audio conferencing</li>
+                <li>✓ Free WebRTC video and audio (no paid services)</li>
                 <li>✓ Screen sharing for presentations</li>
                 <li>✓ Real-time chat during sessions</li>
                 <li>✓ Integrated translation support</li>
@@ -298,9 +440,23 @@ export default function TutoringPage() {
             <div className="lg:col-span-2 space-y-4">
               <div className="bg-surface rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-accent" />
-                    <span className="text-sm text-text">{participants} participant{participants !== 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-accent" />
+                      <span className="text-sm text-text">{participants} participant{participants !== 1 ? 's' : ''}</span>
+                    </div>
+                    {myId && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-accent">Your ID: {myId}</span>
+                        <button
+                          onClick={copyRoomId}
+                          className="p-1 text-accent hover:text-text transition-colors"
+                          title="Copy Room ID"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={leaveCall}
@@ -311,10 +467,31 @@ export default function TutoringPage() {
                   </button>
                 </div>
                 
-                <div
-                  id="video-container"
-                  className="w-full h-[500px] bg-black rounded-lg overflow-hidden"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-black rounded-lg overflow-hidden aspect-video relative">
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                      You
+                    </div>
+                  </div>
+                  <div className="bg-black rounded-lg overflow-hidden aspect-video relative">
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                      Peer
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="bg-surface rounded-lg p-4 shadow-sm">
@@ -421,4 +598,3 @@ export default function TutoringPage() {
     </main>
   );
 }
-

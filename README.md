@@ -19,7 +19,7 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 
 - Next.js 14+ with React and TypeScript
 - OpenRouter API for translation and glossary
-- Daily.co for video conferencing and tutoring sessions
+- PeerJS (WebRTC) for free video conferencing - no paid services required!
 - Tailwind CSS for styling
 - Web Speech API for voice support
 
@@ -35,17 +35,16 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and add your API keys:
+Edit `.env` and add your API key:
 ```
 OPENROUTER_API_KEY=your_api_key_here
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-DAILY_API_KEY=your_daily_api_key_here
-NEXT_PUBLIC_DAILY_DOMAIN=your_domain.daily.co
 ```
 
-Get your API keys from:
+Get your API key from:
 - [OpenRouter](https://openrouter.ai/keys) - for translation
-- [Daily.co](https://dashboard.daily.co/) - for video conferencing (free tier available)
+
+**Note:** Video conferencing uses PeerJS with free WebRTC - no API key needed!
 
 3. Run the development server:
 ```bash
@@ -80,16 +79,17 @@ npm run dev
 
 ### Live Tutoring Sessions
 1. Click "Start Tutoring" from the main page
-2. Create a new room or join an existing one by entering a room name
-3. Share the room name with your tutor/student to join
-4. Features available during sessions:
-   - HD video and audio conferencing
+2. **To create a room:** Enter any room name and click "Create Room"
+3. **To join a room:** Enter the host's Peer ID (shown after creating) and click "Join Room"
+4. Share your Peer ID with your tutor/student (click the copy button)
+5. Features available during sessions:
+   - Free WebRTC video and audio (no paid services!)
    - Screen sharing for presentations
    - Real-time chat messaging
    - Integrated translation panel
    - Mute/unmute audio and video controls
-5. Use the translation features during calls to translate academic terms
-6. Click "Leave" to exit the session
+6. Use the translation features during calls to translate academic terms
+7. Click "Leave" to exit the session
 
 ## Sample Lecture Texts
 
@@ -146,8 +146,8 @@ vercel --prod
 Make sure to add these environment variables in your Vercel project settings:
 - `OPENROUTER_API_KEY` - Your OpenRouter API key (required)
 - `NEXT_PUBLIC_APP_URL` - Your Vercel deployment URL (auto-set, but can be manually configured)
-- `DAILY_API_KEY` - Your Daily.co API key (required for tutoring features)
-- `NEXT_PUBLIC_DAILY_DOMAIN` - Your Daily.co domain (e.g., `ezstudy.daily.co`)
+
+**Note:** Video conferencing uses free WebRTC (PeerJS) - no additional API keys needed!
 
 ## Project Structure
 
