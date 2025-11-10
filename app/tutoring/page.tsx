@@ -33,7 +33,7 @@ const MOCK_TUTORS: Tutor[] = [
   {
     id: '2',
     name: 'Prof. Ahmad Wijaya',
-    subjects: ['Chemistry', 'Biology'],
+    subjects: ['Chemistry', 'Biology', 'Organic Chemistry'],
     languages: ['English', 'Bahasa Indonesia'],
     rating: 4.8,
     studentsCount: 89,
@@ -44,13 +44,178 @@ const MOCK_TUTORS: Tutor[] = [
   {
     id: '3',
     name: 'Dr. Li Wei',
-    subjects: ['Mathematics', 'Statistics'],
+    subjects: ['Mathematics', 'Statistics', 'Calculus'],
     languages: ['English', 'Mandarin'],
     rating: 5.0,
     studentsCount: 203,
     pricePerHour: 30,
     bio: 'Mathematics tutor specializing in calculus and statistics. Helps Chinese students excel in UK university courses.',
-    available: false,
+    available: true,
+  },
+  {
+    id: '4',
+    name: 'Dr. Emily Rodriguez',
+    subjects: ['Computer Science', 'Data Structures', 'Algorithms'],
+    languages: ['English', 'Spanish'],
+    rating: 4.9,
+    studentsCount: 156,
+    pricePerHour: 35,
+    bio: 'Software engineer and university lecturer. Expert in computer science fundamentals and competitive programming.',
+    available: true,
+  },
+  {
+    id: '5',
+    name: 'Prof. Budi Santoso',
+    subjects: ['Biology', 'Genetics', 'Molecular Biology'],
+    languages: ['English', 'Bahasa Indonesia'],
+    rating: 4.7,
+    studentsCount: 94,
+    pricePerHour: 22,
+    bio: 'Dedicated biology tutor with PhD in Genetics. Helps Indonesian students master complex biological concepts.',
+    available: true,
+  },
+  {
+    id: '6',
+    name: 'Dr. Zhang Ming',
+    subjects: ['Physics', 'Thermodynamics', 'Electromagnetism'],
+    languages: ['English', 'Mandarin'],
+    rating: 4.8,
+    studentsCount: 112,
+    pricePerHour: 28,
+    bio: 'Physics professor specializing in thermodynamics and electromagnetism. Makes complex physics accessible.',
+    available: true,
+  },
+  {
+    id: '7',
+    name: 'Ms. Siti Nurhaliza',
+    subjects: ['Chemistry', 'Biochemistry', 'Analytical Chemistry'],
+    languages: ['English', 'Bahasa Indonesia'],
+    rating: 4.9,
+    studentsCount: 78,
+    pricePerHour: 24,
+    bio: 'Chemistry tutor with expertise in biochemistry and analytical chemistry. Patient and thorough teaching style.',
+    available: true,
+  },
+  {
+    id: '8',
+    name: 'Dr. James Wilson',
+    subjects: ['Mathematics', 'Linear Algebra', 'Differential Equations'],
+    languages: ['English'],
+    rating: 4.9,
+    studentsCount: 189,
+    pricePerHour: 32,
+    bio: 'Mathematics professor with 15+ years experience. Specializes in linear algebra and differential equations.',
+    available: true,
+  },
+  {
+    id: '9',
+    name: 'Prof. Chen Xiaoli',
+    subjects: ['Computer Science', 'Machine Learning', 'Python'],
+    languages: ['English', 'Mandarin'],
+    rating: 5.0,
+    studentsCount: 245,
+    pricePerHour: 40,
+    bio: 'AI researcher and ML expert. Helps students understand machine learning concepts and Python programming.',
+    available: true,
+  },
+  {
+    id: '10',
+    name: 'Dr. Rina Kartika',
+    subjects: ['Biology', 'Cell Biology', 'Microbiology'],
+    languages: ['English', 'Bahasa Indonesia'],
+    rating: 4.8,
+    studentsCount: 67,
+    pricePerHour: 21,
+    bio: 'Cell biology expert with PhD in Microbiology. Makes complex biological processes easy to understand.',
+    available: true,
+  },
+  {
+    id: '11',
+    name: 'Dr. Michael Brown',
+    subjects: ['Physics', 'Mechanics', 'Optics'],
+    languages: ['English'],
+    rating: 4.7,
+    studentsCount: 134,
+    pricePerHour: 29,
+    bio: 'Physics tutor specializing in mechanics and optics. Clear explanations and practical examples.',
+    available: true,
+  },
+  {
+    id: '12',
+    name: 'Prof. Wang Fang',
+    subjects: ['Mathematics', 'Number Theory', 'Abstract Algebra'],
+    languages: ['English', 'Mandarin'],
+    rating: 4.9,
+    studentsCount: 98,
+    pricePerHour: 33,
+    bio: 'Mathematics professor with expertise in number theory and abstract algebra. Helps students master advanced concepts.',
+    available: true,
+  },
+  {
+    id: '13',
+    name: 'Dr. Andi Pratama',
+    subjects: ['Chemistry', 'Physical Chemistry', 'Inorganic Chemistry'],
+    languages: ['English', 'Bahasa Indonesia'],
+    rating: 4.8,
+    studentsCount: 76,
+    pricePerHour: 23,
+    bio: 'Chemistry tutor covering physical and inorganic chemistry. Patient teaching approach for complex topics.',
+    available: true,
+  },
+  {
+    id: '14',
+    name: 'Dr. Lisa Thompson',
+    subjects: ['Biology', 'Ecology', 'Evolutionary Biology'],
+    languages: ['English'],
+    rating: 4.9,
+    studentsCount: 145,
+    pricePerHour: 27,
+    bio: 'Biology professor specializing in ecology and evolutionary biology. Engaging teaching style with real-world examples.',
+    available: true,
+  },
+  {
+    id: '15',
+    name: 'Prof. Liu Hong',
+    subjects: ['Computer Science', 'Database Systems', 'Software Engineering'],
+    languages: ['English', 'Mandarin'],
+    rating: 4.9,
+    studentsCount: 167,
+    pricePerHour: 36,
+    bio: 'Software engineering expert with industry experience. Teaches database systems and software development best practices.',
+    available: true,
+  },
+  {
+    id: '16',
+    name: 'Dr. Dewi Sari',
+    subjects: ['Mathematics', 'Geometry', 'Trigonometry'],
+    languages: ['English', 'Bahasa Indonesia'],
+    rating: 4.7,
+    studentsCount: 89,
+    pricePerHour: 20,
+    bio: 'Mathematics tutor specializing in geometry and trigonometry. Helps students build strong foundational skills.',
+    available: true,
+  },
+  {
+    id: '17',
+    name: 'Dr. Robert Kim',
+    subjects: ['Physics', 'Quantum Mechanics', 'Atomic Physics'],
+    languages: ['English'],
+    rating: 5.0,
+    studentsCount: 201,
+    pricePerHour: 38,
+    bio: 'Quantum physics expert with research background. Makes quantum mechanics accessible to students.',
+    available: true,
+  },
+  {
+    id: '18',
+    name: 'Prof. Huang Mei',
+    subjects: ['Computer Science', 'Web Development', 'JavaScript'],
+    languages: ['English', 'Mandarin'],
+    rating: 4.8,
+    studentsCount: 178,
+    pricePerHour: 34,
+    bio: 'Full-stack developer and instructor. Teaches modern web development with JavaScript and React.',
+    available: true,
   },
 ];
 
@@ -87,10 +252,10 @@ export default function TutoringPage() {
           {/* Professional Header */}
           <header className="mb-16 text-center animate-fade-in">
             <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="w-14 h-14 bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl flex items-center justify-center shadow-xl">
+              <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center shadow-xl">
                 <Sparkles className="h-7 w-7 text-white" />
               </div>
-              <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent">
+              <h1 className="text-5xl md:text-6xl font-bold text-gray-900">
                 ezstudy
               </h1>
             </div>
@@ -112,7 +277,7 @@ export default function TutoringPage() {
               className="card card-hover cursor-pointer group border-2 border-transparent hover:border-primary-300"
             >
               <div className="flex flex-col items-center text-center p-8">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:shadow-xl transition-all transform group-hover:scale-110">
+                <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:shadow-xl transition-all transform group-hover:scale-110">
                   <GraduationCap className="h-10 w-10 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-3">I&apos;m a Student</h3>
@@ -130,17 +295,17 @@ export default function TutoringPage() {
                 setUserRole('tutor');
                 localStorage.setItem('ezstudy_user_role', 'tutor');
               }}
-              className="card card-hover cursor-pointer group border-2 border-transparent hover:border-purple-300"
+              className="card card-hover cursor-pointer group border-2 border-transparent hover:border-primary-300"
             >
               <div className="flex flex-col items-center text-center p-8">
-                <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:shadow-xl transition-all transform group-hover:scale-110">
+                <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:shadow-xl transition-all transform group-hover:scale-110">
                   <User className="h-10 w-10 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-3">I&apos;m a Tutor</h3>
                 <p className="text-gray-600 mb-6 leading-relaxed">
                   Share your expertise and help students achieve their academic goals with integrated learning tools
                 </p>
-                <div className="flex items-center text-purple-600 font-semibold group-hover:text-purple-700 transition-colors">
+                <div className="flex items-center text-primary-600 font-semibold group-hover:text-primary-700 transition-colors">
                   Start Teaching <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
@@ -182,8 +347,8 @@ export default function TutoringPage() {
 
             <div className="card">
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center">
-                  <User className="h-6 w-6 text-purple-600" />
+                <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                  <User className="h-6 w-6 text-primary-600" />
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Tutor Features Coming Soon</h2>
@@ -199,14 +364,14 @@ export default function TutoringPage() {
                   'Conduct video sessions with integrated translation tools',
                 ].map((feature, idx) => (
                   <div key={idx} className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                    <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-primary-600 rounded-full"></div>
                     <span className="text-gray-700 font-medium">{feature}</span>
                   </div>
                 ))}
               </div>
               
-              <div className="p-5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                <p className="text-blue-900 text-sm font-medium">
+              <div className="p-5 bg-primary-50 rounded-xl border border-primary-200">
+                <p className="text-primary-900 text-sm font-medium">
                   💡 For now, you can test the tutoring experience by selecting &quot;I&apos;m a Student&quot; and browsing available tutors.
                 </p>
               </div>
@@ -225,7 +390,7 @@ export default function TutoringPage() {
         <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -300,7 +465,7 @@ export default function TutoringPage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                  <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg">
                     {tutor.name.charAt(0)}
                   </div>
                   <div>
@@ -344,7 +509,7 @@ export default function TutoringPage() {
                 </div>
                 <Link
                   href={`/tutoring/session/${tutor.id}`}
-                  className="px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   <Video className="h-4 w-4" />
                   Book Session

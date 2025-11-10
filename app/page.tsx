@@ -50,8 +50,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Professional Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
+      {/* Production-Grade Header */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200">
         <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -59,7 +59,7 @@ export default function Home() {
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold text-gray-900">
                   ezstudy
                 </h1>
                 <p className="text-xs text-gray-500 font-medium">
@@ -70,7 +70,7 @@ export default function Home() {
             <nav className="flex items-center gap-4">
               <Link
                 href="/tutoring"
-                className="px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
+                className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
               >
                 <Video className="h-4 w-4" />
                 Find Tutors
@@ -85,17 +85,17 @@ export default function Home() {
         <div className="text-center mb-16 animate-fade-in">
           <h2 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4 leading-tight">
             Real-time Translation for
-            <span className="block bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600 bg-clip-text text-transparent">
+            <span className="block text-primary-600">
               Academic Success
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Translate lectures instantly, understand concepts with visual aids, and take smart notes—all in real-time.
+            Translate lectures instantly at speech speed, understand concepts with visual aids, and take smart notes—all in real-time.
           </p>
-          <div className="flex items-center justify-center gap-8 text-sm text-gray-500">
+          <div className="flex items-center justify-center gap-8 text-sm text-gray-600 font-medium">
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary-600" />
-              <span>Real-time</span>
+              <span>Speech-speed</span>
             </div>
             <div className="flex items-center gap-2">
               <Globe className="h-5 w-5 text-primary-600" />

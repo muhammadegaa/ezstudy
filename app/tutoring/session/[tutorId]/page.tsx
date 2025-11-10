@@ -2,54 +2,173 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Video, VideoOff, Mic, MicOff, Monitor, X, MessageSquare, Send, Users, Copy } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, X, MessageSquare, Send, Users, Copy, CheckCircle2, Loader2 } from 'lucide-react';
 import LiveLearningAssistant from '@/components/LiveLearningAssistant';
 import type { Language } from '@/types';
 
-// Mock tutor data - in production, fetch from API
-const MOCK_TUTORS: Record<string, { name: string; subjects: string[] }> = {
-  '1': { name: 'Dr. Sarah Chen', subjects: ['Mathematics', 'Physics'] },
-  '2': { name: 'Prof. Ahmad Wijaya', subjects: ['Chemistry', 'Biology'] },
-  '3': { name: 'Dr. Li Wei', subjects: ['Mathematics', 'Statistics'] },
+// Extended tutor data matching the tutors list
+const MOCK_TUTORS: Record<string, { name: string; subjects: string[]; languages: string[] }> = {
+  '1': { name: 'Dr. Sarah Chen', subjects: ['Mathematics', 'Physics', 'Quantum Computing'], languages: ['English', 'Mandarin'] },
+  '2': { name: 'Prof. Ahmad Wijaya', subjects: ['Chemistry', 'Biology', 'Organic Chemistry'], languages: ['English', 'Bahasa Indonesia'] },
+  '3': { name: 'Dr. Li Wei', subjects: ['Mathematics', 'Statistics', 'Calculus'], languages: ['English', 'Mandarin'] },
+  '4': { name: 'Dr. Emily Rodriguez', subjects: ['Computer Science', 'Data Structures', 'Algorithms'], languages: ['English', 'Spanish'] },
+  '5': { name: 'Prof. Budi Santoso', subjects: ['Biology', 'Genetics', 'Molecular Biology'], languages: ['English', 'Bahasa Indonesia'] },
+  '6': { name: 'Dr. Zhang Ming', subjects: ['Physics', 'Thermodynamics', 'Electromagnetism'], languages: ['English', 'Mandarin'] },
+  '7': { name: 'Ms. Siti Nurhaliza', subjects: ['Chemistry', 'Biochemistry', 'Analytical Chemistry'], languages: ['English', 'Bahasa Indonesia'] },
+  '8': { name: 'Dr. James Wilson', subjects: ['Mathematics', 'Linear Algebra', 'Differential Equations'], languages: ['English'] },
+  '9': { name: 'Prof. Chen Xiaoli', subjects: ['Computer Science', 'Machine Learning', 'Python'], languages: ['English', 'Mandarin'] },
+  '10': { name: 'Dr. Rina Kartika', subjects: ['Biology', 'Cell Biology', 'Microbiology'], languages: ['English', 'Bahasa Indonesia'] },
+  '11': { name: 'Dr. Michael Brown', subjects: ['Physics', 'Mechanics', 'Optics'], languages: ['English'] },
+  '12': { name: 'Prof. Wang Fang', subjects: ['Mathematics', 'Number Theory', 'Abstract Algebra'], languages: ['English', 'Mandarin'] },
+  '13': { name: 'Dr. Andi Pratama', subjects: ['Chemistry', 'Physical Chemistry', 'Inorganic Chemistry'], languages: ['English', 'Bahasa Indonesia'] },
+  '14': { name: 'Dr. Lisa Thompson', subjects: ['Biology', 'Ecology', 'Evolutionary Biology'], languages: ['English'] },
+  '15': { name: 'Prof. Liu Hong', subjects: ['Computer Science', 'Database Systems', 'Software Engineering'], languages: ['English', 'Mandarin'] },
+  '16': { name: 'Dr. Dewi Sari', subjects: ['Mathematics', 'Geometry', 'Trigonometry'], languages: ['English', 'Bahasa Indonesia'] },
+  '17': { name: 'Dr. Robert Kim', subjects: ['Physics', 'Quantum Mechanics', 'Atomic Physics'], languages: ['English'] },
+  '18': { name: 'Prof. Huang Mei', subjects: ['Computer Science', 'Web Development', 'JavaScript'], languages: ['English', 'Mandarin'] },
 };
 
 export default function TutoringSessionPage() {
   const router = useRouter();
   const params = useParams();
   const tutorId = params?.tutorId as string;
-  const tutor = MOCK_TUTORS[tutorId] || { name: 'Tutor', subjects: [] };
+  const tutor = MOCK_TUTORS[tutorId] || { name: 'Tutor', subjects: [], languages: [] };
 
   const [myId, setMyId] = useState('');
+  const [remotePeerId, setRemotePeerId] = useState('');
+  const [isInitializing, setIsInitializing] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; message: string; timestamp: Date }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [participants, setParticipants] = useState(1);
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [sourceLang, setSourceLang] = useState<Language>('en');
-  const [targetLang, setTargetLang] = useState<Language>('zh');
+  const [targetLang, setTargetLang] = useState<Language>(tutor.languages.includes('Mandarin') ? 'zh' : tutor.languages.includes('Bahasa Indonesia') ? 'id' : 'en');
   
   const peerRef = useRef<any>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  const connectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const dataChannelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
+  const dataChannelsRef = useRef<Map<string, any>>(new Map());
+  const callRef = useRef<any>(null);
 
+  // Initialize PeerJS on mount
   useEffect(() => {
-    // Load PeerJS
-    if (typeof window !== 'undefined' && !(window as any).Peer) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
-      script.async = true;
-      script.onload = () => {
-        console.log('PeerJS loaded');
-      };
-      document.head.appendChild(script);
-    }
+    if (typeof window === 'undefined') return;
+
+    const loadPeerJS = async () => {
+      // Load PeerJS if not already loaded
+      if (!(window as any).Peer) {
+        return new Promise<void>((resolve) => {
+          const script = document.createElement('script');
+          script.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
+          script.async = true;
+          script.onload = () => {
+            console.log('PeerJS loaded');
+            resolve();
+          };
+          script.onerror = () => {
+            console.error('Failed to load PeerJS');
+            setIsInitializing(false);
+            resolve();
+          };
+          document.head.appendChild(script);
+        });
+      }
+    };
+
+    const initPeer = async () => {
+      await loadPeerJS();
+      
+      if (!(window as any).Peer) {
+        setIsInitializing(false);
+        return;
+      }
+
+      try {
+        const Peer = (window as any).Peer;
+        const peer = new Peer(undefined, {
+          host: '0.peerjs.com',
+          port: 443,
+          path: '/',
+          secure: true,
+        });
+
+        peer.on('open', (id: string) => {
+          console.log('My Peer ID:', id);
+          setMyId(id);
+          peerRef.current = peer;
+          setIsInitializing(false);
+        });
+
+        peer.on('error', (err: any) => {
+          console.error('Peer error:', err);
+          if (err.type === 'peer-unavailable') {
+            // Peer ID not found - this is normal when connecting
+            return;
+          }
+          setIsInitializing(false);
+        });
+
+        peer.on('call', async (call: any) => {
+          console.log('Incoming call from:', call.peer);
+          // Handle incoming call inline to avoid dependency issues
+          try {
+            setConnectionStatus('connecting');
+            // Get stream with current video/audio state
+            const currentVideoOff = isVideoOff;
+            const currentMuted = isMuted;
+            const stream = await getLocalStream(!currentVideoOff, !currentMuted);
+            call.answer(stream);
+            callRef.current = call;
+
+            call.on('stream', (remoteStream: MediaStream) => {
+              console.log('Received remote stream');
+              remoteStreamRef.current = remoteStream;
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = remoteStream;
+              }
+              setParticipants(2);
+              setIsInCall(true);
+              setConnectionStatus('connected');
+            });
+
+            call.on('close', () => {
+              console.log('Call closed');
+              cleanup();
+            });
+
+            call.on('error', (err: any) => {
+              console.error('Call error:', err);
+              cleanup();
+            });
+          } catch (error) {
+            console.error('Error handling incoming call:', error);
+            setConnectionStatus('disconnected');
+          }
+        });
+
+        peer.on('connection', (conn: any) => {
+          console.log('Incoming data connection from:', conn.peer);
+          handleDataConnection(conn);
+        });
+
+        peer.on('disconnected', () => {
+          console.log('Peer disconnected');
+          setConnectionStatus('disconnected');
+        });
+
+      } catch (error) {
+        console.error('Error initializing Peer:', error);
+        setIsInitializing(false);
+      }
+    };
+
+    initPeer();
 
     return () => {
       cleanup();
@@ -65,94 +184,105 @@ export default function TutoringSessionPage() {
       remoteStreamRef.current.getTracks().forEach(track => track.stop());
       remoteStreamRef.current = null;
     }
-    connectionsRef.current.forEach(conn => conn.close());
-    connectionsRef.current.clear();
+    if (callRef.current) {
+      callRef.current.close();
+      callRef.current = null;
+    }
+    dataChannelsRef.current.forEach(conn => {
+      try {
+        conn.close();
+      } catch (e) {
+        console.error('Error closing data connection:', e);
+      }
+    });
     dataChannelsRef.current.clear();
     if (peerRef.current) {
-      peerRef.current.destroy();
+      try {
+        peerRef.current.destroy();
+      } catch (e) {
+        console.error('Error destroying peer:', e);
+      }
       peerRef.current = null;
     }
     setIsInCall(false);
     setParticipants(1);
+    setConnectionStatus('disconnected');
   };
 
   const getLocalStream = async (video: boolean = true, audio: boolean = true) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: video ? { width: 1280, height: 720 } : false,
+        video: video ? { 
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        } : false,
         audio: audio,
       });
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true; // Mute local video to prevent echo
       }
       return stream;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error accessing media devices:', error);
-      alert('Could not access camera/microphone. Please check permissions.');
+      if (error.name === 'NotAllowedError') {
+        alert('Camera/microphone access denied. Please allow access in your browser settings.');
+      } else if (error.name === 'NotFoundError') {
+        alert('No camera/microphone found. Please connect a device.');
+      } else {
+        alert(`Could not access camera/microphone: ${error.message}`);
+      }
       throw error;
     }
   };
 
-  const initializePeer = async () => {
-    return new Promise((resolve, reject) => {
-      const peer = new (window as any).Peer(undefined, {
-        host: '0.peerjs.com',
-        port: 443,
-        path: '/',
-        secure: true,
-      });
-
-      peer.on('open', (id: string) => {
-        console.log('Peer ID:', id);
-        setMyId(id);
-        peerRef.current = peer;
-        resolve(peer);
-      });
-
-      peer.on('error', (err: any) => {
-        console.error('Peer error:', err);
-        reject(err);
-      });
-
-      peer.on('call', (call: any) => {
-        handleIncomingCall(call);
-      });
-
-      peer.on('connection', (conn: any) => {
-        handleDataConnection(conn);
-      });
-    });
-  };
-
-  const handleIncomingCall = async (call: any) => {
+  const handleIncomingCallInternal = async (call: any) => {
     try {
+      setConnectionStatus('connecting');
       const stream = await getLocalStream(!isVideoOff, !isMuted);
       call.answer(stream);
+      callRef.current = call;
 
       call.on('stream', (remoteStream: MediaStream) => {
+        console.log('Received remote stream');
         remoteStreamRef.current = remoteStream;
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
         }
         setParticipants(2);
+        setIsInCall(true);
+        setConnectionStatus('connected');
       });
 
       call.on('close', () => {
+        console.log('Call closed');
         cleanup();
       });
+
+      call.on('error', (err: any) => {
+        console.error('Call error:', err);
+        cleanup();
+      });
+
     } catch (error) {
       console.error('Error handling incoming call:', error);
+      setConnectionStatus('disconnected');
     }
   };
 
   const handleDataConnection = (conn: any) => {
+    conn.on('open', () => {
+      console.log('Data connection opened');
+      dataChannelsRef.current.set(conn.peer, conn);
+    });
+
     conn.on('data', (data: string) => {
       try {
         const message = JSON.parse(data);
         setChatMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          name: message.name || 'Tutor',
+          id: Date.now().toString() + Math.random(),
+          name: message.name || 'Peer',
           message: message.message,
           timestamp: new Date(),
         }]);
@@ -161,57 +291,71 @@ export default function TutoringSessionPage() {
       }
     });
 
-    dataChannelsRef.current.set(conn.peer, conn);
+    conn.on('close', () => {
+      console.log('Data connection closed');
+      dataChannelsRef.current.delete(conn.peer);
+    });
+
+    conn.on('error', (err: any) => {
+      console.error('Data connection error:', err);
+    });
   };
 
-  const startSession = async () => {
-    setIsJoining(true);
-    try {
-      await initializePeer();
-      const stream = await getLocalStream(true, true);
-      setIsInCall(true);
-      
-      // In a real app, you'd connect to the tutor's Peer ID here
-      // For now, show instructions
-      alert(`Your Peer ID: ${myId}\n\nShare this ID with ${tutor.name} to connect.`);
-    } catch (error) {
-      console.error('Error starting session:', error);
-      alert('Failed to start session. Please try again.');
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
-  const joinWithPeerId = async (peerId: string) => {
-    if (!peerRef.current || !peerId.trim()) {
-      alert('Please enter a Peer ID');
+  const startCall = async () => {
+    if (!remotePeerId.trim()) {
+      alert('Please enter the other person\'s Peer ID');
       return;
     }
 
+    if (!peerRef.current) {
+      alert('PeerJS not initialized. Please wait...');
+      return;
+    }
+
+    setIsJoining(true);
+    setConnectionStatus('connecting');
+
     try {
       const stream = await getLocalStream(true, true);
-      const call = peerRef.current.call(peerId, stream);
+      
+      // Make the call
+      const call = peerRef.current.call(remotePeerId, stream);
+      callRef.current = call;
 
       call.on('stream', (remoteStream: MediaStream) => {
+        console.log('Received remote stream');
         remoteStreamRef.current = remoteStream;
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
         }
         setParticipants(2);
+        setIsInCall(true);
+        setConnectionStatus('connected');
       });
 
       call.on('close', () => {
+        console.log('Call closed');
         cleanup();
       });
 
-      // Create data channel for chat
-      const conn = peerRef.current.connect(peerId);
+      call.on('error', (err: any) => {
+        console.error('Call error:', err);
+        alert(`Failed to connect: ${err.message || 'Unknown error'}`);
+        cleanup();
+      });
+
+      // Create data connection for chat
+      const conn = peerRef.current.connect(remotePeerId, {
+        reliable: true,
+      });
       handleDataConnection(conn);
 
-      setIsInCall(true);
-    } catch (error) {
-      console.error('Error joining call:', error);
-      alert('Failed to connect. Please check the Peer ID.');
+    } catch (error: any) {
+      console.error('Error starting call:', error);
+      alert(`Failed to start call: ${error.message || 'Unknown error'}`);
+      setConnectionStatus('disconnected');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -219,7 +363,7 @@ export default function TutoringSessionPage() {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
       audioTracks.forEach(track => {
-        track.enabled = isMuted;
+        track.enabled = !track.enabled;
       });
       setIsMuted(!isMuted);
     }
@@ -229,31 +373,33 @@ export default function TutoringSessionPage() {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
       videoTracks.forEach(track => {
-        track.enabled = isVideoOff;
+        track.enabled = !track.enabled;
       });
       setIsVideoOff(!isVideoOff);
     }
   };
 
   const sendChatMessage = () => {
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || dataChannelsRef.current.size === 0) return;
 
     const message = {
       name: 'You',
-      message: chatInput,
+      message: chatInput.trim(),
     };
 
     setChatMessages(prev => [...prev, {
-      id: Date.now().toString(),
+      id: Date.now().toString() + Math.random(),
       name: 'You',
-      message: chatInput,
+      message: chatInput.trim(),
       timestamp: new Date(),
     }]);
 
     // Send to all data channels
     dataChannelsRef.current.forEach(conn => {
       try {
-        conn.send(JSON.stringify(message));
+        if (conn.open) {
+          conn.send(JSON.stringify(message));
+        }
       } catch (e) {
         console.error('Error sending message:', e);
       }
@@ -267,14 +413,33 @@ export default function TutoringSessionPage() {
     router.push('/tutoring');
   };
 
+  const copyPeerId = () => {
+    if (myId) {
+      navigator.clipboard.writeText(myId);
+      alert('Peer ID copied to clipboard!');
+    }
+  };
+
+  if (isInitializing) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center card p-8">
+          <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Initializing Video Call</h2>
+          <p className="text-gray-600">Setting up your connection...</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Professional Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
+    <main className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200">
         <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">
+              <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">
                 {tutor.name.charAt(0)}
               </div>
               <div>
@@ -293,18 +458,18 @@ export default function TutoringSessionPage() {
       </header>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
-
         {!isInCall ? (
           <div className="max-w-2xl mx-auto card">
             <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
+              <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
                 <Video className="h-10 w-10 text-white" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Start Tutoring Session</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Start Video Session</h2>
               <p className="text-gray-600">Connect with {tutor.name} for personalized learning</p>
             </div>
             
             <div className="space-y-6">
+              {/* Your Peer ID */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Your Peer ID (share this with {tutor.name}):
@@ -312,21 +477,22 @@ export default function TutoringSessionPage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={myId}
+                    value={myId || 'Generating...'}
                     readOnly
                     className="flex-1 input bg-gray-50"
-                    placeholder="Generating..."
                   />
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(myId);
-                      alert('Peer ID copied!');
-                    }}
-                    className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm"
+                    onClick={copyPeerId}
+                    disabled={!myId}
+                    className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     <Copy className="h-5 w-5" />
+                    Copy
                   </button>
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Share this ID with the other person so they can connect to you
+                </p>
               </div>
 
               <div className="relative">
@@ -338,30 +504,56 @@ export default function TutoringSessionPage() {
                 </div>
               </div>
 
+              {/* Connect to Peer ID */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Enter {tutor.name}&apos;s Peer ID to connect:
                 </label>
-                <input
-                  type="text"
-                  placeholder="Enter tutor's Peer ID"
-                  className="input"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      joinWithPeerId((e.target as HTMLInputElement).value);
-                    }
-                  }}
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={remotePeerId}
+                    onChange={(e) => setRemotePeerId(e.target.value)}
+                    placeholder="Enter peer ID here"
+                    className="flex-1 input"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && remotePeerId.trim()) {
+                        startCall();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={startCall}
+                    disabled={isJoining || !remotePeerId.trim() || connectionStatus === 'connecting'}
+                    className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                  >
+                    {isJoining ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="h-5 w-5" />
+                        Connect
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Ask {tutor.name} for their Peer ID and enter it above
+                </p>
               </div>
 
-              <button
-                onClick={startSession}
-                disabled={isJoining}
-                className="w-full px-6 py-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transform hover:scale-[1.02] disabled:transform-none"
-              >
-                <Video className="h-5 w-5" />
-                {isJoining ? 'Starting Session...' : 'Start Session'}
-              </button>
+              {/* Connection Status */}
+              {connectionStatus === 'connecting' && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Connecting...</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -370,7 +562,8 @@ export default function TutoringSessionPage() {
             <div className="lg:col-span-2 space-y-6">
               <div className="card overflow-hidden">
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-xl">
+                  {/* Local Video */}
+                  <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
                     <video
                       ref={localVideoRef}
                       autoPlay
@@ -378,29 +571,47 @@ export default function TutoringSessionPage() {
                       playsInline
                       className="w-full h-full object-cover"
                     />
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
+                      You
+                    </div>
                   </div>
-                  <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-xl">
-                    <video
-                      ref={remoteVideoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
+                  {/* Remote Video */}
+                  <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
+                    {connectionStatus === 'connected' ? (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Loader2 className="h-12 w-12 animate-spin text-white" />
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
+                      {tutor.name}
+                    </div>
                   </div>
                 </div>
 
+                {/* Controls */}
                 <div className="flex items-center justify-center gap-3">
                   <button
                     onClick={toggleMute}
-                    className={`p-4 rounded-xl ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-100 hover:bg-gray-200'} text-white transition-all shadow-lg hover:shadow-xl transform hover:scale-110`}
+                    className={`p-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                      isMuted ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
                   >
-                    {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5 text-gray-700" />}
+                    {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                   </button>
                   <button
                     onClick={toggleVideo}
-                    className={`p-4 rounded-xl ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-100 hover:bg-gray-200'} text-white transition-all shadow-lg hover:shadow-xl transform hover:scale-110`}
+                    className={`p-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                      isVideoOff ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
                   >
-                    {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5 text-gray-700" />}
+                    {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                   </button>
                   <button
                     onClick={leaveCall}
@@ -409,6 +620,14 @@ export default function TutoringSessionPage() {
                     <X className="h-5 w-5" />
                   </button>
                 </div>
+
+                {/* Connection Status */}
+                {connectionStatus === 'connected' && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-sm text-green-600">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="font-medium">Connected</span>
+                  </div>
+                )}
               </div>
 
               {/* Live Learning Assistant */}
@@ -419,7 +638,7 @@ export default function TutoringSessionPage() {
             <div className="card">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
                     <MessageSquare className="h-4 w-4 text-primary-600" />
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">Chat</h3>
@@ -435,15 +654,20 @@ export default function TutoringSessionPage() {
                   <div className="text-center py-12">
                     <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-sm text-gray-500">No messages yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Start chatting with {tutor.name}</p>
                   </div>
                 ) : (
                   chatMessages.map(msg => (
-                    <div key={msg.id} className="p-3 bg-gray-50 rounded-xl">
+                    <div key={msg.id} className={`p-3 rounded-xl ${msg.name === 'You' ? 'bg-primary-50 ml-4' : 'bg-gray-50 mr-4'}`}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-sm text-gray-900">{msg.name}</span>
+                        <span className={`font-bold text-sm ${msg.name === 'You' ? 'text-primary-700' : 'text-gray-900'}`}>
+                          {msg.name}
+                        </span>
                         <span className="text-xs text-gray-400">{msg.timestamp.toLocaleTimeString()}</span>
                       </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">{msg.message}</p>
+                      <p className={`text-sm leading-relaxed ${msg.name === 'You' ? 'text-primary-900' : 'text-gray-700'}`}>
+                        {msg.message}
+                      </p>
                     </div>
                   ))
                 )}
@@ -457,10 +681,12 @@ export default function TutoringSessionPage() {
                   onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
                   placeholder="Type a message..."
                   className="flex-1 input"
+                  disabled={dataChannelsRef.current.size === 0}
                 />
                 <button
                   onClick={sendChatMessage}
-                  className="px-5 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+                  disabled={!chatInput.trim() || dataChannelsRef.current.size === 0}
+                  className="px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   <Send className="h-5 w-5" />
                 </button>
@@ -472,4 +698,3 @@ export default function TutoringSessionPage() {
     </main>
   );
 }
-

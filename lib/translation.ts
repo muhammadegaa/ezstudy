@@ -36,20 +36,24 @@ const academicTerms: Record<string, Record<string, string>> = {
   },
 };
 
-// Intelligent text chunking - splits at sentence boundaries, max 400 chars per chunk
+// Ultra-fast intelligent chunking - optimized for speech-speed translation
+// Splits at sentence boundaries, prioritizes speed over perfect boundaries
 function chunkText(text: string, maxChunkSize: number = 400): string[] {
   if (text.length <= maxChunkSize) {
     return [text];
   }
 
   const chunks: string[] = [];
-  const sentences = text.split(/([.!?]\s+)/);
+  // Fast sentence splitting - use simple regex for speed
+  const sentences = text.split(/(?<=[.!?])\s+/);
   
   let currentChunk = '';
   
   for (let i = 0; i < sentences.length; i++) {
-    const sentence = sentences[i];
-    const potentialChunk = currentChunk + sentence;
+    const sentence = sentences[i].trim();
+    if (!sentence) continue;
+    
+    const potentialChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
     
     if (potentialChunk.length <= maxChunkSize) {
       currentChunk = potentialChunk;
@@ -57,19 +61,19 @@ function chunkText(text: string, maxChunkSize: number = 400): string[] {
       if (currentChunk.trim()) {
         chunks.push(currentChunk.trim());
       }
-      // If single sentence is too long, split by words
+      // If sentence is too long, split by commas or just take it
       if (sentence.length > maxChunkSize) {
-        const words = sentence.split(/\s+/);
-        let wordChunk = '';
-        for (const word of words) {
-          if ((wordChunk + ' ' + word).length <= maxChunkSize) {
-            wordChunk += (wordChunk ? ' ' : '') + word;
+        const parts = sentence.split(/,\s+/);
+        let partChunk = '';
+        for (const part of parts) {
+          if ((partChunk + ', ' + part).length <= maxChunkSize) {
+            partChunk = partChunk ? partChunk + ', ' + part : part;
           } else {
-            if (wordChunk) chunks.push(wordChunk);
-            wordChunk = word;
+            if (partChunk) chunks.push(partChunk);
+            partChunk = part;
           }
         }
-        if (wordChunk) currentChunk = wordChunk;
+        currentChunk = partChunk || sentence.substring(0, maxChunkSize);
       } else {
         currentChunk = sentence;
       }
@@ -100,10 +104,11 @@ async function translateWithMyMemory(
   const chunks = chunkText(text, 450);
   const translatedChunks: string[] = [];
 
-  for (const chunk of chunks) {
+  // Parallel translation for speed - translate all chunks simultaneously
+  const translationPromises = chunks.map(async (chunk) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced timeout for speed
       
       const response = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${source}|${target}`,
@@ -120,17 +125,20 @@ async function translateWithMyMemory(
       if (response.ok) {
         const data = await response.json();
         if (data.responseData && data.responseData.translatedText) {
-          translatedChunks.push(data.responseData.translatedText);
-          continue;
+          return data.responseData.translatedText;
         }
       }
     } catch (e) {
       console.error('MyMemory chunk error:', e);
     }
     
-    // If chunk fails, add original
-    translatedChunks.push(chunk);
-  }
+    // If chunk fails, return original
+    return chunk;
+  });
+
+  // Wait for all translations in parallel
+  const results = await Promise.all(translationPromises);
+  translatedChunks.push(...results);
 
   if (translatedChunks.length === 0) {
     throw new Error('MyMemory failed');
@@ -152,14 +160,13 @@ async function translateWithGoogleTranslate(
     return text;
   }
 
-  // Google Translate can handle longer texts, but chunk for reliability
+  // Google Translate - parallel processing for speed
   const chunks = chunkText(text, 1000);
-  const translatedChunks: string[] = [];
-
-  for (const chunk of chunks) {
+  
+  const translationPromises = chunks.map(async (chunk) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Faster timeout
       
       const response = await fetch(
         `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(chunk)}`,
@@ -176,17 +183,17 @@ async function translateWithGoogleTranslate(
       if (response.ok) {
         const data = await response.json();
         if (data && data[0] && data[0][0] && data[0][0][0]) {
-          const translated = data[0].map((item: any[]) => item[0]).join('');
-          translatedChunks.push(translated);
-          continue;
+          return data[0].map((item: any[]) => item[0]).join('');
         }
       }
     } catch (e) {
       console.error('Google Translate chunk error:', e);
     }
     
-    translatedChunks.push(chunk);
-  }
+    return chunk;
+  });
+
+  const translatedChunks = await Promise.all(translationPromises);
 
   if (translatedChunks.length === 0) {
     throw new Error('Google Translate failed');
@@ -214,17 +221,15 @@ async function translateWithLibreTranslate(
     'https://translate.fortytwo-it.com/translate',
   ];
 
-  // LibreTranslate can handle longer texts, but chunk for reliability
+  // LibreTranslate - parallel processing with fastest instance selection
   const chunks = chunkText(text, 1000);
-  const translatedChunks: string[] = [];
-
-  for (const chunk of chunks) {
-    let translated = false;
-    
-    for (const url of LIBRETRANSLATE_URLS) {
+  
+  const translationPromises = chunks.map(async (chunk) => {
+    // Try all instances in parallel, take first successful
+    const instancePromises = LIBRETRANSLATE_URLS.map(async (url) => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // Faster timeout
         
         const response = await fetch(url, {
           method: 'POST',
@@ -245,20 +250,21 @@ async function translateWithLibreTranslate(
         if (response.ok) {
           const data = await response.json();
           if (data.translatedText) {
-            translatedChunks.push(data.translatedText);
-            translated = true;
-            break;
+            return data.translatedText;
           }
         }
       } catch (e) {
-        continue;
+        return null;
       }
-    }
-    
-    if (!translated) {
-      translatedChunks.push(chunk);
-    }
-  }
+      return null;
+    });
+
+    // Race all instances - take first successful
+    const results = await Promise.all(instancePromises);
+    return results.find(r => r !== null) || chunk;
+  });
+
+  const translatedChunks = await Promise.all(translationPromises);
 
   if (translatedChunks.length === 0) {
     throw new Error('LibreTranslate failed');

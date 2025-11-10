@@ -186,9 +186,14 @@ export default function LiveLearningAssistant({
       const combinedText = cumulativeTextRef.current.trim() + ' ' + interimText;
       setOriginalText(combinedText);
 
+      // Ultra-fast real-time translation - immediate for speech speed
       if (finalText.trim()) {
+        // No delay - translate immediately for speech-speed response
         translateInRealTime.current(finalText.trim());
-        analyzeConceptsInRealTime.current(finalText.trim());
+        // Concepts can be slightly delayed (not critical for speed)
+        setTimeout(() => {
+          analyzeConceptsInRealTime.current(finalText.trim());
+        }, 100);
       }
     };
 
@@ -387,11 +392,15 @@ export default function LiveLearningAssistant({
       setIsTranslating(true);
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Reduced timeout for speed
         
+        // Optimized fetch with no-cache for fastest response
         const response = await fetch('/api/translate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
           body: JSON.stringify({
             text: text.trim(),
             sourceLang,
@@ -648,22 +657,22 @@ export default function LiveLearningAssistant({
         <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Mic className="h-5 w-5 text-white" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Live Translation</h2>
-                <p className="text-xs text-gray-500 font-medium">Real-time speech-to-text translation</p>
+                <p className="text-xs text-gray-500 font-medium">Speech-speed real-time translation</p>
               </div>
             </div>
             
             <button
               onClick={handleToggle}
               disabled={isRequestingPermission || isSupported === false}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg transform hover:scale-105 ${
+              className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 ${
                 isActive
-                  ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
-                  : 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800'
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-primary-600 text-white hover:bg-primary-700'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
             >
               {isRequestingPermission ? (
@@ -732,10 +741,11 @@ export default function LiveLearningAssistant({
                 }
                 
                 if (text.trim()) {
+                  // Ultra-fast translation - 200ms debounce for speech-speed translation
                   translateTimeoutRef.current = setTimeout(() => {
                     translateInRealTime.current(text.trim());
                     analyzeConceptsInRealTime.current(text.trim());
-                  }, 800);
+                  }, 200);
                 } else {
                   setTranslatedText('');
                 }
@@ -756,10 +766,10 @@ export default function LiveLearningAssistant({
           </div>
 
           {/* Target */}
-          <div className="p-6 bg-gradient-to-br from-primary-50/30 to-purple-50/20">
+          <div className="p-6 bg-gray-50/50">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
                 <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                   {langNames[targetLang]}
                 </span>
@@ -794,14 +804,14 @@ export default function LiveLearningAssistant({
       {concepts.length > 0 && (
         <div className="card">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-purple-600" />
+            <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-primary-600" />
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Visual References</h3>
               <p className="text-xs text-gray-500">Concepts that benefit from visual aids</p>
             </div>
-            <span className="ml-auto px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">
+            <span className="ml-auto px-3 py-1 bg-primary-100 text-primary-700 text-xs font-bold rounded-full">
               {concepts.length}
             </span>
           </div>
@@ -811,21 +821,22 @@ export default function LiveLearningAssistant({
               return (
                 <div
                   key={concept.name}
-                  className="bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-purple-300 hover:shadow-md transition-all transform hover:-translate-y-1 group"
+                  className="bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-primary-300 hover:shadow-md transition-all transform hover:-translate-y-1 group"
                 >
-                  <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 min-h-[2.5rem] group-hover:text-purple-600 transition-colors">
+                  <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 min-h-[2.5rem] group-hover:text-primary-600 transition-colors">
                     {concept.name}
                   </div>
-                  {conceptGifs.length > 0 ? (
-                    <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 shadow-sm">
-                      <img
-                        src={conceptGifs[0].url}
-                        alt={concept.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  ) : (
+                          {conceptGifs.length > 0 ? (
+                            <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 shadow-sm">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={conceptGifs[0].url}
+                                alt={`Visual aid for ${concept.name}`}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : (
                     <div className="aspect-video rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                       <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                     </div>
@@ -841,15 +852,15 @@ export default function LiveLearningAssistant({
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center">
-              <BookOpen className="h-5 w-5 text-amber-600" />
+            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+              <BookOpen className="h-5 w-5 text-gray-700" />
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Notes</h3>
               <p className="text-xs text-gray-500">AI-powered note enhancement</p>
             </div>
             {notes.length > 0 && (
-              <span className="ml-auto px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
+              <span className="ml-auto px-3 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-full">
                 {notes.length}
               </span>
             )}
@@ -875,7 +886,7 @@ export default function LiveLearningAssistant({
           />
           <button
             onClick={addNote}
-            className="w-full px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+            className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-[1.02]"
           >
             <Save className="h-4 w-4" />
             Save Note
@@ -900,7 +911,7 @@ export default function LiveLearningAssistant({
                     <button
                       onClick={() => enhanceNoteWithAI(note.id)}
                       disabled={isEnhancingNote && enhancingNoteId === note.id}
-                      className="px-3 py-1.5 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-purple-200"
+                      className="px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-primary-200"
                     >
                       {isEnhancingNote && enhancingNoteId === note.id ? (
                         <>
@@ -943,7 +954,7 @@ export default function LiveLearningAssistant({
                     {note.concepts.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {note.concepts.slice(0, 3).map((concept, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-md">
+                          <span key={idx} className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-medium rounded-md">
                             {concept}
                           </span>
                         ))}

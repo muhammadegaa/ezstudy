@@ -38,6 +38,7 @@ export default function VisualAids({ transcript, language }: VisualAidsProps) {
     }, 2000);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transcript]);
 
   const analyzeConcepts = async (text: string) => {
@@ -93,7 +94,7 @@ export default function VisualAids({ transcript, language }: VisualAidsProps) {
   return (
     <div className="bg-surface rounded-lg p-4 shadow-sm">
       <div className="flex items-center gap-2 mb-4">
-        <Image className="h-5 w-5 text-accent" />
+        <Image className="h-5 w-5 text-accent" aria-label="Visual aids icon" />
         <h3 className="text-lg font-semibold text-text">Visual Aids</h3>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-accent" />}
       </div>
@@ -135,9 +136,10 @@ export default function VisualAids({ transcript, language }: VisualAidsProps) {
                       key={gif.id}
                       className="relative rounded overflow-hidden bg-black aspect-video"
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={gif.url}
-                        alt={gif.title}
+                        alt={gif.title || `Visual aid for ${concept.name}`}
                         className="w-full h-full object-cover"
                         loading="lazy"
                       />

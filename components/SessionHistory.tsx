@@ -58,8 +58,8 @@ export default function SessionHistory({
     <div className="card">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center">
-            <Clock className="h-5 w-5 text-primary-600" />
+          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+            <Clock className="h-5 w-5 text-gray-700" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-gray-900">Session History</h2>
