@@ -58,35 +58,52 @@ export default function LiveLearningAssistant({
     setIsSupported(!!SpeechRecognition);
   }, []);
 
-  // Request microphone permission
+  // Request microphone permission - FIXED VERSION
   const requestMicrophonePermission = async () => {
     setIsRequestingPermission(true);
     setError(null);
+    
     try {
-      // Check if microphone is available
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const hasAudioInput = devices.some(device => device.kind === 'audioinput');
+      // Request permission directly - this will prompt user
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       
-      if (!hasAudioInput) {
-        setIsRequestingPermission(false);
-        setError('No microphone found. You can still type or paste text to translate.');
+      // Keep stream alive briefly to ensure permission is granted
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Now enumerate to check what we got
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      
+      // Stop the stream - we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+      
+      setIsRequestingPermission(false);
+      
+      if (audioInputs.length === 0) {
+        setError('No microphone detected. Please connect a microphone and try again.');
         setIsActive(false);
         return false;
       }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Stop the stream immediately - we just needed permission
-      stream.getTracks().forEach(track => track.stop());
-      setIsRequestingPermission(false);
+      
       return true;
     } catch (err: any) {
       setIsRequestingPermission(false);
+      console.error('Microphone permission error:', err);
+      
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setError('Microphone permission denied. You can still type or paste text below.');
+        setError('Microphone permission denied. Please allow microphone access in your browser settings and refresh the page.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setError('No microphone found. You can still type or paste text to translate.');
+        setError('No microphone found. Please connect a microphone device.');
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setError('Microphone is being used by another application. Please close other apps using the microphone.');
       } else {
-        setError('Microphone unavailable. You can still type or paste text below.');
+        setError(`Microphone error: ${err.message || err.name}. Please check your microphone connection.`);
       }
       setIsActive(false);
       return false;
@@ -181,13 +198,33 @@ export default function LiveLearningAssistant({
             } catch (e) {
               console.error('Failed to restart:', e);
             }
-          }, 500);
+          }, 1000);
         }
       } else if (event.error === 'aborted') {
         // User stopped it, ignore
-      } else {
-        setError(`Speech recognition error: ${event.error}. Please try again.`);
+      } else if (event.error === 'audio-capture') {
+        setError('No microphone found or microphone is not working. Please check your microphone.');
         setIsActive(false);
+      } else if (event.error === 'network') {
+        setError('Network error. Please check your internet connection.');
+        setIsActive(false);
+      } else {
+        console.warn('Speech recognition error (non-critical):', event.error);
+        // Don't stop for minor errors, just log them
+        if (event.error !== 'bad-grammar' && event.error !== 'language-not-supported') {
+          // Try to restart
+          if (isActive && recognitionRef.current) {
+            setTimeout(() => {
+              try {
+                if (recognitionRef.current && isActive) {
+                  recognitionRef.current.start();
+                }
+              } catch (e) {
+                console.error('Failed to restart after error:', e);
+              }
+            }, 1000);
+          }
+        }
       }
     };
 
@@ -212,18 +249,35 @@ export default function LiveLearningAssistant({
     // Request permission and start recognition
     const startRecognition = async () => {
       const hasPermission = await requestMicrophonePermission();
-      if (hasPermission && isActive && recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-          console.log('Speech recognition started successfully');
-        } catch (e: any) {
-          console.error('Failed to start recognition:', e);
-          setError('Failed to start listening. Please try again.');
+      if (!hasPermission) {
+        setIsActive(false);
+        return;
+      }
+      
+      if (!isActive || !recognitionRef.current) {
+        return;
+      }
+      
+      // Small delay to ensure everything is ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      if (!isActive || !recognitionRef.current) {
+        return;
+      }
+      
+      try {
+        recognitionRef.current.start();
+        console.log('✅ Speech recognition started successfully');
+      } catch (e: any) {
+        console.error('Failed to start recognition:', e);
+        if (e.message && e.message.includes('already started')) {
+          // Already running, that's fine
+          console.log('Recognition already running');
+        } else {
+          setError(`Failed to start listening: ${e.message || 'Unknown error'}. Please try again.`);
           setIsActive(false);
           setIsRequestingPermission(false);
         }
-      } else if (!hasPermission) {
-        setIsActive(false);
       }
     };
 
@@ -433,11 +487,10 @@ export default function LiveLearningAssistant({
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-800">{error}</p>
-              <p className="text-xs text-blue-600 mt-1">Don&apos;t worry - you can still translate by typing or pasting text below!</p>
+              <p className="text-sm font-medium text-red-800">{error}</p>
             </div>
           </div>
         )}
