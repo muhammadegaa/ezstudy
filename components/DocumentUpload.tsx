@@ -52,45 +52,67 @@ export default function DocumentUpload({
 
     setLoading(true);
     setError(null);
+    
+    // Split text into chunks for better translation
+    const chunks = text.match(/.{1,500}/g) || [text];
+    const translations: Translation[] = [];
 
     try {
-      // Split text into chunks for better translation
-      const chunks = text.match(/.{1,500}/g) || [text];
-      const translations: Translation[] = [];
 
       for (const chunk of chunks) {
-        const response = await fetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: chunk,
-            sourceLang,
-            targetLang,
-            includeGlossary: true,
-          }),
-        });
+        try {
+          const response = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: chunk,
+              sourceLang,
+              targetLang,
+              includeGlossary: true,
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error('Translation failed');
-        }
+          if (!response.ok) {
+            // Continue with next chunk instead of failing completely
+            translations.push({
+              original: chunk,
+              translated: chunk + ' [Translation failed for this chunk]',
+              language: targetLang,
+              glossary: [],
+            });
+            continue;
+          }
 
-        const data = await response.json();
-        translations.push({
-          original: chunk,
-          translated: data.translation,
-          language: targetLang,
-          glossary: data.glossary?.map((g: any) => ({
-            ...g,
+          const data = await response.json();
+          translations.push({
+            original: chunk,
+            translated: data.translation || chunk,
             language: targetLang,
-          })),
-        });
+            glossary: data.glossary?.map((g: any) => ({
+              ...g,
+              language: targetLang,
+            })) || [],
+          });
+        } catch (chunkError) {
+          // Continue with next chunk - don't fail entire document
+          translations.push({
+            original: chunk,
+            translated: chunk + ' [Translation error]',
+            language: targetLang,
+            glossary: [],
+          });
+        }
       }
 
       onTranslationComplete(translations);
       setText('');
       setFile(null);
     } catch (err: any) {
-      setError(err.message || 'Translation failed');
+      setError(err.message || 'Translation failed. Some chunks may have been translated successfully.');
+      // Still save what we got
+      if (translations.length > 0) {
+        onTranslationComplete(translations);
+      }
     } finally {
       setLoading(false);
     }

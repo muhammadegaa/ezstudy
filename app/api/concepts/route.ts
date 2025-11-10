@@ -1,87 +1,116 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+// Free concept extraction using keyword matching and pattern recognition
+// No paid APIs required!
+
+const ACADEMIC_PATTERNS = [
+  // Physics
+  { pattern: /newton['\s]s?\s+(first|second|third)\s+law/gi, category: 'Physics', searchTerms: ['newton law', 'physics motion'] },
+  { pattern: /quantum\s+mechanics?/gi, category: 'Physics', searchTerms: ['quantum mechanics', 'quantum physics'] },
+  { pattern: /wave[- ]particle\s+duality/gi, category: 'Physics', searchTerms: ['wave particle duality', 'quantum physics'] },
+  { pattern: /einstein['\s]s?\s+theory\s+of\s+relativity/gi, category: 'Physics', searchTerms: ['einstein relativity', 'theory of relativity'] },
+  { pattern: /photoelectric\s+effect/gi, category: 'Physics', searchTerms: ['photoelectric effect', 'light electrons'] },
+  { pattern: /schrödinger['\s]s?\s+equation/gi, category: 'Physics', searchTerms: ['schrodinger equation', 'quantum mechanics'] },
+  
+  // Chemistry
+  { pattern: /photosynthesis/gi, category: 'Chemistry', searchTerms: ['photosynthesis', 'plant process'] },
+  { pattern: /chemical\s+reaction/gi, category: 'Chemistry', searchTerms: ['chemical reaction', 'chemistry'] },
+  { pattern: /periodic\s+table/gi, category: 'Chemistry', searchTerms: ['periodic table', 'elements'] },
+  { pattern: /molecular\s+structure/gi, category: 'Chemistry', searchTerms: ['molecular structure', 'molecules'] },
+  
+  // Biology
+  { pattern: /mitosis/gi, category: 'Biology', searchTerms: ['mitosis', 'cell division'] },
+  { pattern: /meiosis/gi, category: 'Biology', searchTerms: ['meiosis', 'cell division'] },
+  { pattern: /dna\s+replication/gi, category: 'Biology', searchTerms: ['dna replication', 'genetics'] },
+  { pattern: /evolution/gi, category: 'Biology', searchTerms: ['evolution', 'natural selection'] },
+  
+  // Mathematics
+  { pattern: /calculus/gi, category: 'Mathematics', searchTerms: ['calculus', 'mathematics'] },
+  { pattern: /derivative/gi, category: 'Mathematics', searchTerms: ['derivative', 'calculus'] },
+  { pattern: /integral/gi, category: 'Mathematics', searchTerms: ['integral', 'calculus'] },
+  { pattern: /pythagorean\s+theorem/gi, category: 'Mathematics', searchTerms: ['pythagorean theorem', 'geometry'] },
+  
+  // General academic terms
+  { pattern: /\bhypothesis\b/gi, category: 'General', searchTerms: ['hypothesis', 'scientific method'] },
+  { pattern: /\btheorem\b/gi, category: 'Mathematics', searchTerms: ['theorem', 'mathematics'] },
+  { pattern: /\bprinciple\b/gi, category: 'General', searchTerms: ['principle', 'concept'] },
+  { pattern: /\btheory\b/gi, category: 'General', searchTerms: ['theory', 'scientific theory'] },
+];
+
+function extractConcepts(transcript: string): Array<{
+  name: string;
+  description: string;
+  searchTerms: string[];
+}> {
+  const concepts: Map<string, { name: string; description: string; searchTerms: string[] }> = new Map();
+  
+  // Extract concepts using patterns
+  for (const { pattern, category, searchTerms } of ACADEMIC_PATTERNS) {
+    const matches = transcript.match(pattern);
+    if (matches) {
+      const match = matches[0];
+      const conceptName = match.charAt(0).toUpperCase() + match.slice(1).toLowerCase();
+      
+      if (!concepts.has(conceptName.toLowerCase())) {
+        concepts.set(conceptName.toLowerCase(), {
+          name: conceptName,
+          description: `${category} concept: ${conceptName}`,
+          searchTerms,
+        });
+      }
+    }
+  }
+  
+  // Extract capitalized terms (likely proper nouns or important concepts)
+  const capitalizedTerms = transcript.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
+  if (capitalizedTerms) {
+    for (const term of capitalizedTerms) {
+      const lowerTerm = term.toLowerCase();
+      // Skip common words
+      if (term.length > 3 && !['The', 'This', 'That', 'There', 'These', 'Those'].includes(term)) {
+        if (!concepts.has(lowerTerm)) {
+          concepts.set(lowerTerm, {
+            name: term,
+            description: `Academic term: ${term}`,
+            searchTerms: [term.toLowerCase()],
+          });
+        }
+      }
+    }
+  }
+  
+  return Array.from(concepts.values()).slice(0, 10); // Limit to 10 concepts
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { transcript } = body;
 
-    if (!transcript) {
+    if (!transcript || typeof transcript !== 'string') {
       return NextResponse.json(
         { error: 'Transcript is required' },
         { status: 400 }
       );
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OpenRouter API key not configured' },
-        { status: 500 }
-      );
+    if (transcript.length < 10) {
+      return NextResponse.json({
+        concepts: [],
+      });
     }
 
-    const systemPrompt = `You are an academic concept analyzer. Analyze the transcript and identify:
-1. Key academic concepts, theories, laws, or principles mentioned
-2. Scientific phenomena or processes
-3. Mathematical concepts or formulas
-4. Historical events or dates
-5. Any visualizable concepts (physics laws, chemical reactions, biological processes, etc.)
+    // Extract concepts using free pattern matching
+    const concepts = extractConcepts(transcript);
 
-For each concept, provide:
-- The concept name
-- A brief description
-- Search terms that would help find relevant GIFs/animations to visualize it
-
-Output ONLY valid JSON in this format:
-{
-  "concepts": [
-    {
-      "name": "Newton's First Law",
-      "description": "An object at rest stays at rest, an object in motion stays in motion",
-      "searchTerms": ["newton first law", "inertia", "physics motion"]
-    }
-  ]
-}`;
-
-    const response = await axios.post(
-      OPENROUTER_API_URL,
-      {
-        model: 'openai/gpt-4-turbo-preview',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Analyze this lecture transcript:\n\n${transcript}` },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-          'X-Title': 'ezstudy',
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const content = response.data.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('No response from OpenRouter');
-    }
-
-    const parsed = JSON.parse(content);
     return NextResponse.json({
-      concepts: parsed.concepts || [],
+      concepts,
     });
   } catch (error: any) {
     console.error('Concept analysis error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Concept analysis failed' },
-      { status: 500 }
-    );
+    // Return empty array instead of error to not break the UI
+    return NextResponse.json({
+      concepts: [],
+    });
   }
 }
-

@@ -52,18 +52,19 @@ export default function TranslationPanel({
       });
 
       if (!response.ok) {
-        throw new Error('Translation failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Translation failed. Please try again.');
       }
 
       const data = await response.json();
       const newTranslation: Translation = {
         original: inputText,
-        translated: data.translation,
+        translated: data.translation || inputText,
         language: targetLang,
         glossary: data.glossary?.map((g: any) => ({
           ...g,
           language: targetLang,
-        })),
+        })) || [],
       };
 
       setTranslation(newTranslation);

@@ -33,21 +33,25 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 npm install
 ```
 
-2. Set up environment variables:
+2. Set up environment variables (OPTIONAL):
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your API key:
+Edit `.env` (all optional - app works without any API keys!):
 ```
-OPENROUTER_API_KEY=your_api_key_here
+# Optional: Giphy API key (free tier works without it)
+GIPHY_API_KEY=dc6zaTOxFJmzC
+
+# Optional: App URL (auto-detected)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Get your API key from:
-- [OpenRouter](https://openrouter.ai/keys) - for translation
-
-**Note:** Video conferencing uses PeerJS with free WebRTC - no API key needed!
+**No API keys required!** The app uses:
+- LibreTranslate (free, open-source) for translation
+- Free pattern matching for concept extraction
+- Free Giphy public beta key for GIFs
+- Free PeerJS WebRTC for video conferencing
 
 3. Run the development server:
 ```bash
@@ -120,11 +124,13 @@ npm run dev
 1. Go to [Vercel](https://vercel.com) and sign in with your GitHub account
 2. Click "Add New Project"
 3. Import your GitHub repository: `muhammadegaa/ezstudy`
-4. Configure environment variables:
-   - `OPENROUTER_API_KEY` - Your OpenRouter API key
+4. Configure environment variables (OPTIONAL):
+   - `GIPHY_API_KEY` - Optional, free tier works without it
    - `NEXT_PUBLIC_APP_URL` - Your Vercel deployment URL (will be auto-filled)
 5. Click "Deploy"
 6. Wait for deployment to complete
+
+**No API keys required!** Everything works with free services.
 
 ### Option 2: Deploy via Vercel CLI
 
@@ -143,10 +149,10 @@ vercel login
 vercel
 ```
 
-4. Add environment variables in Vercel dashboard or via CLI:
+4. Add environment variables in Vercel dashboard (OPTIONAL):
 ```bash
-vercel env add OPENROUTER_API_KEY
-vercel env add NEXT_PUBLIC_APP_URL
+vercel env add GIPHY_API_KEY  # Optional
+vercel env add NEXT_PUBLIC_APP_URL  # Optional
 ```
 
 5. Redeploy with environment variables:
@@ -154,13 +160,19 @@ vercel env add NEXT_PUBLIC_APP_URL
 vercel --prod
 ```
 
-### Environment Variables in Vercel
+### Environment Variables in Vercel (All Optional!)
 
-Make sure to add these environment variables in your Vercel project settings:
-- `OPENROUTER_API_KEY` - Your OpenRouter API key (required)
-- `NEXT_PUBLIC_APP_URL` - Your Vercel deployment URL (auto-set, but can be manually configured)
+The app works completely without any API keys! All services are free:
+- **Translation**: LibreTranslate (free, open-source)
+- **Concept Extraction**: Free pattern matching
+- **GIFs**: Giphy free public beta key
+- **Video Conferencing**: Free PeerJS WebRTC
 
-**Note:** Video conferencing uses free WebRTC (PeerJS) - no additional API keys needed!
+Optional environment variables:
+- `GIPHY_API_KEY` - Optional, free tier works without it
+- `NEXT_PUBLIC_APP_URL` - Auto-detected, optional to set manually
+
+**100% FREE - No paid services required!**
 
 ## Project Structure
 

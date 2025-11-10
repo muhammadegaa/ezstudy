@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { translateWithGlossary } from '@/lib/openrouter';
+import { translateText } from '@/lib/translation';
 import type { Language } from '@/types';
 
 export async function POST(request: NextRequest) {
+  let originalText = '';
+  
   try {
     const body = await request.json();
     const { text, sourceLang, targetLang } = body;
+    originalText = text || '';
 
     if (!text || !sourceLang || !targetLang) {
       return NextResponse.json(
@@ -14,19 +17,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OpenRouter API key not configured' },
-        { status: 500 }
-      );
-    }
-
-    const result = await translateWithGlossary(
+    // Use free LibreTranslate service (no API key needed!)
+    const result = await translateText(
       text,
       sourceLang as Language,
-      targetLang as Language,
-      apiKey
+      targetLang as Language
     );
 
     return NextResponse.json({
@@ -35,10 +30,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Translation API error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Translation failed' },
-      { status: 500 }
-    );
+    // Return original text with error indicator instead of failing
+    return NextResponse.json({
+      translation: originalText + ' [Translation temporarily unavailable]',
+      glossary: [],
+    });
   }
 }
 
