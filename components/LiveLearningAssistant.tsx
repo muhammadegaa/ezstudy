@@ -46,6 +46,8 @@ export default function LiveLearningAssistant({
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [hasMicrophone, setHasMicrophone] = useState<boolean | null>(null);
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+  const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied' | null>(null);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const cumulativeTextRef = useRef('');
@@ -59,8 +61,65 @@ export default function LiveLearningAssistant({
     setIsSupported(!!SpeechRecognition);
   }, []);
 
-  // Speech Recognition handles microphone permission itself - don't pre-check!
-  // Just start recognition and let it request permission
+  // Check microphone permission status
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
+          
+          result.onchange = () => {
+            setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
+          };
+        }
+      } catch (e) {
+        // Permissions API not supported, that's fine
+      }
+    };
+    checkPermission();
+  }, []);
+
+  // Request microphone permission explicitly BEFORE starting recognition
+  const requestMicrophonePermission = async (): Promise<boolean> => {
+    setIsRequestingPermission(true);
+    setError(null);
+    
+    try {
+      // Explicitly request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Got permission! Stop the stream (we just needed permission)
+      stream.getTracks().forEach(track => track.stop());
+      
+      setHasMicrophone(true);
+      setPermissionState('granted');
+      setIsRequestingPermission(false);
+      setShowPermissionPrompt(false);
+      return true;
+      
+    } catch (err: any) {
+      setIsRequestingPermission(false);
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionState('denied');
+        setHasMicrophone(false);
+        setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+        setShowPermissionPrompt(false);
+        return false;
+      } else if (err.name === 'NotFoundError') {
+        setHasMicrophone(false);
+        setError('No microphone found. Please connect a microphone.');
+        setShowPermissionPrompt(false);
+        return false;
+      } else {
+        setHasMicrophone(false);
+        setError(`Microphone error: ${err.message || err.name}`);
+        setShowPermissionPrompt(false);
+        return false;
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isActive) {
@@ -205,18 +264,23 @@ export default function LiveLearningAssistant({
 
     recognitionRef.current = recognition;
     
-    // Start recognition directly - it will request microphone permission
+    // Start recognition - permission should already be granted
     setIsRequestingPermission(true);
     try {
       recognition.start();
-      console.log('✅ Speech recognition starting - will request microphone permission');
-      setHasMicrophone(true); // Assume it will work, will be set to false on error
+      console.log('✅ Speech recognition started');
+      setHasMicrophone(true);
     } catch (e: any) {
       console.error('Failed to start recognition:', e);
       setIsRequestingPermission(false);
       if (e.message && e.message.includes('already started')) {
         console.log('Recognition already running');
         setHasMicrophone(true);
+      } else if (e.message && e.message.includes('not-allowed')) {
+        setError('Microphone permission denied. Please allow microphone access.');
+        setHasMicrophone(false);
+        setPermissionState('denied');
+        setIsActive(false);
       } else {
         setError(`Failed to start listening: ${e.message || 'Unknown error'}`);
         setHasMicrophone(false);
@@ -359,6 +423,12 @@ export default function LiveLearningAssistant({
 
   const handleToggle = async () => {
     if (!isActive) {
+      // Check if we need to request permission first
+      if (permissionState !== 'granted' && hasMicrophone !== true) {
+        setShowPermissionPrompt(true);
+        return;
+      }
+      
       setError(null);
       cumulativeTextRef.current = '';
       setSpeechText('');
@@ -376,6 +446,20 @@ export default function LiveLearningAssistant({
           // Ignore
         }
       }
+    }
+  };
+
+  const handleAllowPermission = async () => {
+    const granted = await requestMicrophonePermission();
+    if (granted) {
+      // Permission granted, now start listening
+      setError(null);
+      cumulativeTextRef.current = '';
+      setSpeechText('');
+      setTranslatedText('');
+      setConcepts([]);
+      setGifs(new Map());
+      setIsActive(true);
     }
   };
 
@@ -429,6 +513,49 @@ export default function LiveLearningAssistant({
             </button>
           </div>
         </div>
+
+        {/* Permission Prompt - Production App Style */}
+        {showPermissionPrompt && (
+          <div className="px-6 py-4 bg-blue-50 border-b border-blue-200">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Mic className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold text-blue-900">Microphone Permission Required</h3>
+                </div>
+                <p className="text-sm text-blue-800 mb-3">
+                  ezstudy needs access to your microphone to provide real-time speech translation. 
+                  Click &quot;Allow Microphone&quot; to enable voice input.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleAllowPermission}
+                    disabled={isRequestingPermission}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isRequestingPermission ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Requesting...
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="h-4 w-4" />
+                        Allow Microphone
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowPermissionPrompt(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status Messages */}
         {error && (
