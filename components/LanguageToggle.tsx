@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowLeftRight } from 'lucide-react';
 import type { Language } from '@/types';
 
 interface LanguageToggleProps {
@@ -13,79 +14,85 @@ export default function LanguageToggle({
   targetLang,
   onLanguageChange,
 }: LanguageToggleProps) {
-  const languages: { code: Language; name: string; native: string }[] = [
-    { code: 'en', name: 'English', native: 'English' },
-    { code: 'zh', name: 'Mandarin', native: '中文' },
-    { code: 'id', name: 'Indonesian', native: 'Bahasa Indonesia' },
+  const languages: { code: Language; name: string; native: string; flag: string }[] = [
+    { code: 'en', name: 'English', native: 'English', flag: '🇬🇧' },
+    { code: 'zh', name: 'Mandarin', native: '中文', flag: '🇨🇳' },
+    { code: 'id', name: 'Indonesian', native: 'Bahasa Indonesia', flag: '🇮🇩' },
   ];
 
   const handleSwap = () => {
     onLanguageChange(targetLang, sourceLang);
   };
 
+  const sourceLangData = languages.find(l => l.code === sourceLang);
+  const targetLangData = languages.find(l => l.code === targetLang);
+
   return (
-    <div className="bg-surface rounded-lg p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-4">
+    <div className="card">
+      <div className="flex items-center gap-4">
+        {/* Source Language */}
         <div className="flex-1">
-          <label className="block text-sm font-medium text-text mb-2">
-            Source Language
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            From
           </label>
-          <select
-            value={sourceLang}
-            onChange={(e) =>
-              onLanguageChange(e.target.value as Language, targetLang)
-            }
-            className="w-full px-4 py-2 rounded border border-accent bg-background text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            {languages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name} ({lang.native})
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={sourceLang}
+              onChange={(e) =>
+                onLanguageChange(e.target.value as Language, targetLang)
+              }
+              className="input appearance-none pr-10 font-medium text-gray-900 cursor-pointer"
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
 
+        {/* Swap Button */}
         <button
           onClick={handleSwap}
-          className="px-4 py-2 text-accent hover:text-text transition-colors"
+          className="mt-8 p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-all transform hover:scale-110"
           aria-label="Swap languages"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
+          <ArrowLeftRight className="h-5 w-5" />
         </button>
 
+        {/* Target Language */}
         <div className="flex-1">
-          <label className="block text-sm font-medium text-text mb-2">
-            Target Language
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            To
           </label>
-          <select
-            value={targetLang}
-            onChange={(e) =>
-              onLanguageChange(sourceLang, e.target.value as Language)
-            }
-            className="w-full px-4 py-2 rounded border border-accent bg-background text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            {languages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name} ({lang.native})
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={targetLang}
+              onChange={(e) =>
+                onLanguageChange(sourceLang, e.target.value as Language)
+              }
+              className="input appearance-none pr-10 font-medium text-gray-900 cursor-pointer"
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.flag} {lang.name}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

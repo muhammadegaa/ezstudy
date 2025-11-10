@@ -2,13 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Video } from 'lucide-react';
-import TranslationPanel from '@/components/TranslationPanel';
+import { Video, Sparkles, BookOpen, Zap, Globe } from 'lucide-react';
 import LanguageToggle from '@/components/LanguageToggle';
-import DocumentUpload from '@/components/DocumentUpload';
-import VoiceInput from '@/components/VoiceInput';
-import SessionHistory from '@/components/SessionHistory';
 import LiveLearningAssistant from '@/components/LiveLearningAssistant';
+import SessionHistory from '@/components/SessionHistory';
 import type { Language, Session, Translation } from '@/types';
 
 export default function Home() {
@@ -18,7 +15,6 @@ export default function Home() {
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    // Load sessions from localStorage
     const savedSessions = localStorage.getItem('ezstudy_sessions');
     if (savedSessions) {
       try {
@@ -54,58 +50,86 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
-        {/* Production-Ready Header */}
-        <header className="mb-8 border-b border-gray-200 pb-6">
+      {/* Professional Header */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
+        <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-accent to-accent/70 bg-clip-text text-transparent mb-2">
-                ezstudy
-              </h1>
-              <p className="text-gray-600 text-sm font-medium">
-                Academic Translation & Learning Companion for Chinese and Indonesian Students
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                  ezstudy
+                </h1>
+                <p className="text-xs text-gray-500 font-medium">
+                  Academic Translation & Learning Companion
+                </p>
+              </div>
             </div>
-            <Link
-              href="/tutoring"
-              className="px-6 py-3 bg-gradient-to-r from-accent to-accent/90 text-background rounded-xl hover:from-accent/90 hover:to-accent transition-all shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 font-semibold"
-            >
-              <Video className="h-5 w-5" />
-              Start Tutoring
-            </Link>
+            <nav className="flex items-center gap-4">
+              <Link
+                href="/tutoring"
+                className="px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
+              >
+                <Video className="h-4 w-4" />
+                Find Tutors
+              </Link>
+            </nav>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Primary Content */}
-          <div className="lg:col-span-2 space-y-6">
-            <LanguageToggle
-              sourceLang={sourceLang}
-              targetLang={targetLang}
-              onLanguageChange={handleLanguageChange}
-            />
+      <div className="container mx-auto px-6 py-12 max-w-7xl">
+        {/* Hero Section */}
+        <div className="text-center mb-16 animate-fade-in">
+          <h2 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4 leading-tight">
+            Real-time Translation for
+            <span className="block bg-gradient-to-r from-primary-600 via-purple-600 to-primary-600 bg-clip-text text-transparent">
+              Academic Success
+            </span>
+          </h2>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+            Translate lectures instantly, understand concepts with visual aids, and take smart notes—all in real-time.
+          </p>
+          <div className="flex items-center justify-center gap-8 text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary-600" />
+              <span>Real-time</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-primary-600" />
+              <span>Multi-language</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary-600" />
+              <span>AI-powered</span>
+            </div>
+          </div>
+        </div>
 
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Primary Content - 8 columns */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* Language Selector */}
+            <div className="card card-hover">
+              <LanguageToggle
+                sourceLang={sourceLang}
+                targetLang={targetLang}
+                onLanguageChange={handleLanguageChange}
+              />
+            </div>
+
+            {/* Live Learning Assistant - Main Feature */}
             <LiveLearningAssistant
               sourceLang={sourceLang}
               targetLang={targetLang}
             />
-
-            <TranslationPanel
-              sourceLang={sourceLang}
-              targetLang={targetLang}
-              onTranslationComplete={saveSession}
-            />
-
-            <DocumentUpload
-              sourceLang={sourceLang}
-              targetLang={targetLang}
-              onTranslationComplete={saveSession}
-            />
           </div>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
+          {/* Sidebar - 4 columns */}
+          <div className="lg:col-span-4 space-y-6">
             <SessionHistory
               sessions={sessions}
               currentSession={currentSession}
@@ -117,4 +141,3 @@ export default function Home() {
     </main>
   );
 }
-

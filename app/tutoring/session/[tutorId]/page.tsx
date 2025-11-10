@@ -269,27 +269,44 @@ export default function TutoringSessionPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <header className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Session with {tutor.name}</h1>
-            <p className="text-gray-600">Subjects: {tutor.subjects.join(', ')}</p>
+      {/* Professional Header */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
+        <div className="container mx-auto px-6 py-4 max-w-7xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">
+                {tutor.name.charAt(0)}
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Session with {tutor.name}</h1>
+                <p className="text-xs text-gray-500 font-medium">{tutor.subjects.join(' • ')}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => router.push('/tutoring')}
+              className="px-5 py-2.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold shadow-sm"
+            >
+              Back to Tutors
+            </button>
           </div>
-          <button
-            onClick={() => router.push('/tutoring')}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            Back to Tutors
-          </button>
-        </header>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-6 py-12 max-w-7xl">
 
         {!isInCall ? (
-          <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Start Tutoring Session</h2>
+          <div className="max-w-2xl mx-auto card">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
+                <Video className="h-10 w-10 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Start Tutoring Session</h2>
+              <p className="text-gray-600">Connect with {tutor.name} for personalized learning</p>
+            </div>
             
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Your Peer ID (share this with {tutor.name}):
                 </label>
                 <div className="flex gap-2">
@@ -297,7 +314,7 @@ export default function TutoringSessionPage() {
                     type="text"
                     value={myId}
                     readOnly
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50"
+                    className="flex-1 input bg-gray-50"
                     placeholder="Generating..."
                   />
                   <button
@@ -305,21 +322,30 @@ export default function TutoringSessionPage() {
                       navigator.clipboard.writeText(myId);
                       alert('Peer ID copied!');
                     }}
-                    className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm"
                   >
                     <Copy className="h-5 w-5" />
                   </button>
                 </div>
               </div>
 
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Or enter {tutor.name}&apos;s Peer ID to connect:
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Enter {tutor.name}&apos;s Peer ID to connect:
                 </label>
                 <input
                   type="text"
                   placeholder="Enter tutor's Peer ID"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       joinWithPeerId((e.target as HTMLInputElement).value);
@@ -331,7 +357,7 @@ export default function TutoringSessionPage() {
               <button
                 onClick={startSession}
                 disabled={isJoining}
-                className="w-full px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full px-6 py-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transform hover:scale-[1.02] disabled:transform-none"
               >
                 <Video className="h-5 w-5" />
                 {isJoining ? 'Starting Session...' : 'Start Session'}
@@ -342,9 +368,9 @@ export default function TutoringSessionPage() {
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Video Section */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg p-6">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="aspect-video bg-black rounded-lg overflow-hidden">
+              <div className="card overflow-hidden">
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-xl">
                     <video
                       ref={localVideoRef}
                       autoPlay
@@ -353,7 +379,7 @@ export default function TutoringSessionPage() {
                       className="w-full h-full object-cover"
                     />
                   </div>
-                  <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                  <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-xl">
                     <video
                       ref={remoteVideoRef}
                       autoPlay
@@ -363,22 +389,22 @@ export default function TutoringSessionPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-4">
+                <div className="flex items-center justify-center gap-3">
                   <button
                     onClick={toggleMute}
-                    className={`p-3 rounded-full ${isMuted ? 'bg-red-500' : 'bg-gray-200'} text-white hover:opacity-80 transition-colors`}
+                    className={`p-4 rounded-xl ${isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-100 hover:bg-gray-200'} text-white transition-all shadow-lg hover:shadow-xl transform hover:scale-110`}
                   >
-                    {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5 text-gray-700" />}
                   </button>
                   <button
                     onClick={toggleVideo}
-                    className={`p-3 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-gray-200'} text-white hover:opacity-80 transition-colors`}
+                    className={`p-4 rounded-xl ${isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-100 hover:bg-gray-200'} text-white transition-all shadow-lg hover:shadow-xl transform hover:scale-110`}
                   >
-                    {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+                    {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5 text-gray-700" />}
                   </button>
                   <button
                     onClick={leaveCall}
-                    className="p-3 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                    className="p-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-110"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -390,34 +416,51 @@ export default function TutoringSessionPage() {
             </div>
 
             {/* Chat Sidebar */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Chat</h3>
-                <Users className="h-5 w-5 text-gray-400" />
-                <span className="text-sm text-gray-600">{participants}</span>
-              </div>
-
-              <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
-                {chatMessages.map(msg => (
-                  <div key={msg.id} className="text-sm">
-                    <span className="font-medium text-gray-900">{msg.name}:</span>
-                    <span className="text-gray-700 ml-2">{msg.message}</span>
+            <div className="card">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary-100 to-primary-200 rounded-lg flex items-center justify-center">
+                    <MessageSquare className="h-4 w-4 text-primary-600" />
                   </div>
-                ))}
+                  <h3 className="text-lg font-bold text-gray-900">Chat</h3>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
+                  <Users className="h-4 w-4 text-gray-600" />
+                  <span className="text-sm font-semibold text-gray-700">{participants}</span>
+                </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="space-y-3 mb-4 max-h-[500px] overflow-y-auto">
+                {chatMessages.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">No messages yet</p>
+                  </div>
+                ) : (
+                  chatMessages.map(msg => (
+                    <div key={msg.id} className="p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-sm text-gray-900">{msg.name}</span>
+                        <span className="text-xs text-gray-400">{msg.timestamp.toLocaleTimeString()}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{msg.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t border-gray-200">
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
                   placeholder="Type a message..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 input"
                 />
                 <button
                   onClick={sendChatMessage}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-5 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   <Send className="h-5 w-5" />
                 </button>

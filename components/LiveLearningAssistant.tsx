@@ -642,24 +642,29 @@ export default function LiveLearningAssistant({
 
   return (
     <div className="space-y-6">
-      {/* Main Translation Interface - Production Ready */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Clean Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+      {/* Main Translation Interface - YC-Worthy Design */}
+      <div className="card overflow-hidden">
+        {/* Professional Header */}
+        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Live Translation</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Real-time speech-to-text translation</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Mic className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Live Translation</h2>
+                <p className="text-xs text-gray-500 font-medium">Real-time speech-to-text translation</p>
+              </div>
             </div>
             
             <button
               onClick={handleToggle}
               disabled={isRequestingPermission || isSupported === false}
-              className={`px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 ${
+              className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg transform hover:scale-105 ${
                 isActive
-                  ? 'bg-red-500 text-white hover:bg-red-600 shadow-sm'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
+                  : 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800'
+              } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
             >
               {isRequestingPermission ? (
                 <>
@@ -669,7 +674,7 @@ export default function LiveLearningAssistant({
               ) : isActive ? (
                 <>
                   <MicOff className="h-4 w-4" />
-                  Stop
+                  Stop Listening
                 </>
               ) : (
                 <>
@@ -681,31 +686,36 @@ export default function LiveLearningAssistant({
           </div>
         </div>
 
-        {/* Error Message - Only show if actually needed */}
+        {/* Error Message - Professional styling */}
         {error && (
-          <div className="px-6 py-3 bg-amber-50 border-b border-amber-100">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-amber-800">{error}</p>
+          <div className="px-6 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <AlertCircle className="h-3 w-3 text-white" />
+              </div>
+              <p className="text-sm font-medium text-amber-900">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Translation Area */}
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-x divide-gray-100">
+        {/* Translation Area - Side by Side */}
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
           {/* Source */}
           <div className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                {langNames[sourceLang]}
-              </span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  {langNames[sourceLang]}
+                </span>
+              </div>
               {originalText && (
                 <button
                   onClick={() => copyText(originalText)}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-all group"
                   title="Copy"
                 >
-                  <Copy className="h-4 w-4 text-gray-400" />
+                  <Copy className="h-4 w-4 text-gray-400 group-hover:text-primary-600 transition-colors" />
                 </button>
               )}
             </div>
@@ -731,46 +741,49 @@ export default function LiveLearningAssistant({
                 }
               }}
               placeholder={isActive ? "Listening... or type here" : "Type or paste text here..."}
-              className="w-full min-h-[280px] text-base text-gray-900 placeholder-gray-400 border-0 focus:outline-none resize-none bg-transparent"
-              rows={12}
+              className="w-full min-h-[320px] text-lg text-gray-900 placeholder-gray-400 border-0 focus:outline-none resize-none bg-transparent font-medium leading-relaxed"
+              rows={14}
             />
             {isActive && speechText && (
-              <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-100">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-xs font-medium text-green-700">Live Speech</span>
+              <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 animate-slide-up">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-bold text-green-700 uppercase tracking-wide">Live Speech</span>
                 </div>
-                <p className="text-sm text-green-800">{speechText}</p>
+                <p className="text-sm text-green-900 font-medium leading-relaxed">{speechText}</p>
               </div>
             )}
           </div>
 
           {/* Target */}
-          <div className="p-6 bg-gray-50/30">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                {langNames[targetLang]}
-              </span>
+          <div className="p-6 bg-gradient-to-br from-primary-50/30 to-purple-50/20">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  {langNames[targetLang]}
+                </span>
+              </div>
               {translatedText && (
                 <button
                   onClick={() => copyText(translatedText)}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  className="p-2 hover:bg-white/50 rounded-lg transition-all group"
                   title="Copy"
                 >
-                  <Copy className="h-4 w-4 text-gray-400" />
+                  <Copy className="h-4 w-4 text-gray-400 group-hover:text-primary-600 transition-colors" />
                 </button>
               )}
             </div>
-            <div className="min-h-[280px]">
+            <div className="min-h-[320px]">
               {isTranslating ? (
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Translating...</span>
+                <div className="flex items-center gap-3 text-gray-500">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+                  <span className="text-sm font-medium">Translating...</span>
                 </div>
               ) : translatedText ? (
-                <p className="text-base text-gray-900 whitespace-pre-wrap leading-relaxed">{translatedText}</p>
+                <p className="text-lg text-gray-900 whitespace-pre-wrap leading-relaxed font-medium">{translatedText}</p>
               ) : (
-                <p className="text-base text-gray-400">Translation will appear here...</p>
+                <p className="text-lg text-gray-400 italic">Translation will appear here...</p>
               )}
             </div>
           </div>
@@ -779,27 +792,32 @@ export default function LiveLearningAssistant({
 
       {/* Visual Aids */}
       {concepts.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="h-5 w-5 text-blue-600" />
-            <h3 className="text-base font-semibold text-gray-900">Visual References</h3>
-            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded">
+        <div className="card">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Visual References</h3>
+              <p className="text-xs text-gray-500">Concepts that benefit from visual aids</p>
+            </div>
+            <span className="ml-auto px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">
               {concepts.length}
             </span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {concepts.slice(0, 8).map((concept) => {
               const conceptGifs = gifs.get(concept.name) || [];
               return (
                 <div
                   key={concept.name}
-                  className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
+                  className="bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-purple-300 hover:shadow-md transition-all transform hover:-translate-y-1 group"
                 >
-                  <div className="text-xs font-semibold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]">
+                  <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 min-h-[2.5rem] group-hover:text-purple-600 transition-colors">
                     {concept.name}
                   </div>
                   {conceptGifs.length > 0 ? (
-                    <div className="aspect-video rounded overflow-hidden bg-gray-100">
+                    <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 shadow-sm">
                       <img
                         src={conceptGifs[0].url}
                         alt={concept.name}
@@ -808,8 +826,8 @@ export default function LiveLearningAssistant({
                       />
                     </div>
                   ) : (
-                    <div className="aspect-video rounded bg-gray-100 flex items-center justify-center">
-                      <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
+                    <div className="aspect-video rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                     </div>
                   )}
                 </div>
@@ -820,13 +838,18 @@ export default function LiveLearningAssistant({
       )}
 
       {/* Notes */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-gray-600" />
-            <h3 className="text-base font-semibold text-gray-900">Notes</h3>
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center">
+              <BookOpen className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Notes</h3>
+              <p className="text-xs text-gray-500">AI-powered note enhancement</p>
+            </div>
             {notes.length > 0 && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded">
+              <span className="ml-auto px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
                 {notes.length}
               </span>
             )}
@@ -834,25 +857,25 @@ export default function LiveLearningAssistant({
           {notes.length > 0 && (
             <button
               onClick={saveNotes}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm font-medium"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md"
             >
               <Download className="h-4 w-4" />
-              Export
+              Export All
             </button>
           )}
         </div>
         
-        <div className="space-y-3">
+        <div className="space-y-4">
           <textarea
             value={currentNote}
             onChange={(e) => setCurrentNote(e.target.value)}
             placeholder="Add your notes here..."
-            className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all"
-            rows={3}
+            className="input resize-none"
+            rows={4}
           />
           <button
             onClick={addNote}
-            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+            className="w-full px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
           >
             <Save className="h-4 w-4" />
             Save Note
@@ -860,16 +883,16 @@ export default function LiveLearningAssistant({
         </div>
 
         {notes.length > 0 && (
-          <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto">
+          <div className="mt-6 space-y-3 max-h-[400px] overflow-y-auto">
             {notes.map((note) => (
               <div
                 key={note.id}
-                className="bg-gray-50 rounded-lg p-3 border border-gray-200 text-xs"
+                className="bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-primary-300 transition-all"
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
-                    <span className="text-gray-500 font-medium">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span className="text-xs font-semibold text-gray-600">
                       {note.timestamp.toLocaleTimeString()}
                     </span>
                   </div>
@@ -877,7 +900,7 @@ export default function LiveLearningAssistant({
                     <button
                       onClick={() => enhanceNoteWithAI(note.id)}
                       disabled={isEnhancingNote && enhancingNoteId === note.id}
-                      className="px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-purple-200"
                     >
                       {isEnhancingNote && enhancingNoteId === note.id ? (
                         <>
@@ -894,8 +917,8 @@ export default function LiveLearningAssistant({
                   )}
                 </div>
                 {note.enhanced ? (
-                  <div className="space-y-2">
-                    <div className="text-gray-900 whitespace-pre-wrap text-xs font-medium bg-white p-2 rounded border border-gray-200">
+                  <div className="space-y-3">
+                    <div className="text-gray-900 whitespace-pre-wrap text-sm font-medium bg-gradient-to-br from-gray-50 to-white p-4 rounded-xl border border-gray-200 leading-relaxed">
                       {note.enhanced}
                     </div>
                     <button
@@ -908,17 +931,22 @@ export default function LiveLearningAssistant({
                         a.click();
                         URL.revokeObjectURL(url);
                       }}
-                      className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                      className="text-primary-600 hover:text-primary-700 text-xs font-semibold flex items-center gap-1"
                     >
+                      <Download className="h-3 w-3" />
                       Download Enhanced Note
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="text-gray-900 line-clamp-2">{note.original.substring(0, 100)}...</div>
+                    <div className="text-gray-900 text-sm font-medium line-clamp-2 mb-2">{note.original.substring(0, 150)}...</div>
                     {note.concepts.length > 0 && (
-                      <div className="text-gray-500 mt-1 text-xs">
-                        {note.concepts.slice(0, 3).join(' • ')}
+                      <div className="flex flex-wrap gap-1.5">
+                        {note.concepts.slice(0, 3).map((concept, idx) => (
+                          <span key={idx} className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-md">
+                            {concept}
+                          </span>
+                        ))}
                       </div>
                     )}
                   </>
