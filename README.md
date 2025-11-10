@@ -28,8 +28,15 @@ npm install
 2. Set up environment variables:
 ```bash
 cp .env.example .env
-# Add your OpenRouter API key to .env
 ```
+
+Edit `.env` and add your OpenRouter API key:
+```
+OPENROUTER_API_KEY=your_api_key_here
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+Get your API key from [OpenRouter](https://openrouter.ai/keys)
 
 3. Run the development server:
 ```bash
@@ -37,6 +44,39 @@ npm run dev
 ```
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Usage
+
+### Real-time Translation
+1. Select source and target languages using the language toggle
+2. Enter text in the input field or use voice input
+3. Click "Translate" or press Cmd/Ctrl + Enter
+4. View translation with glossary terms highlighted
+
+### Voice Input
+- Click "Start Voice Input" to begin recording
+- Speak clearly in your source language
+- The transcript will automatically populate the translation input
+
+### Document Upload
+- Upload a TXT file containing lecture notes or slides
+- Preview the content
+- Click "Translate Document" to translate the entire document
+
+### Session History
+- All translations are automatically saved
+- Click on a session to view details
+- Export sessions as text files
+- Delete sessions you no longer need
+
+## Sample Lecture Texts
+
+### English Sample:
+"The fundamental principles of quantum mechanics challenge our classical understanding of physics. Wave-particle duality suggests that particles exhibit both wave-like and particle-like properties depending on the observation method."
+
+### Academic Terms Glossary:
+- **Quantum mechanics**: A branch of physics dealing with atomic and subatomic systems
+- **Wave-particle duality**: The concept that matter exhibits both wave and particle characteristics
 
 ## Project Structure
 
