@@ -59,12 +59,20 @@ export default function LiveLearningAssistant({
     setIsSupported(!!SpeechRecognition);
   }, []);
 
-  // Request microphone permission - FIXED: Request FIRST, then check
+  // Request microphone permission - PRODUCTION READY: Handle all cases gracefully
   const requestMicrophonePermission = async () => {
     setIsRequestingPermission(true);
     setError(null);
     
     try {
+      // First check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setHasMicrophone(false);
+        setIsRequestingPermission(false);
+        setIsActive(false);
+        return false;
+      }
+
       // Request permission directly - browser will prompt user
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -74,48 +82,57 @@ export default function LiveLearningAssistant({
         } 
       });
       
+      // Verify stream has audio tracks
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        stream.getTracks().forEach(track => track.stop());
+        setHasMicrophone(false);
+        setIsRequestingPermission(false);
+        setIsActive(false);
+        return false;
+      }
+      
       // Keep stream briefly to ensure permission is granted
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // NOW enumerate devices AFTER permission is granted
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = devices.filter(device => device.kind === 'audioinput' && device.deviceId !== 'default');
-      
-      // Stop the stream
+      // Stop the stream - we just needed permission
       stream.getTracks().forEach(track => track.stop());
       
-      setIsRequestingPermission(false);
-      
-      if (audioInputs.length === 0) {
-        // Check if we have default device
-        const hasDefault = devices.some(d => d.kind === 'audioinput' && d.deviceId === 'default');
-        if (!hasDefault) {
-          setError('No microphone detected. Please connect a microphone.');
-          setHasMicrophone(false);
-          setIsActive(false);
-          return false;
-        }
-      }
-      
+      // Verify we have microphone access
       setHasMicrophone(true);
+      setIsRequestingPermission(false);
       return true;
+      
     } catch (err: any) {
       setIsRequestingPermission(false);
-      console.error('Microphone permission error:', err);
       
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setError('Microphone permission denied. Please allow access in browser settings.');
+      // Handle NotFoundError gracefully - no microphone hardware
+      if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setHasMicrophone(false);
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setError('No microphone found. Please connect a microphone device.');
-        setHasMicrophone(false);
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setError('Microphone is being used by another application.');
-        setHasMicrophone(false);
-      } else {
-        setError(`Microphone error: ${err.message || err.name}`);
-        setHasMicrophone(false);
+        setIsActive(false);
+        // Don't show error - just disable voice features gracefully
+        return false;
       }
+      
+      // Handle permission denied
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setHasMicrophone(false);
+        setIsActive(false);
+        setError('Microphone permission denied. Voice features disabled.');
+        return false;
+      }
+      
+      // Handle microphone in use
+      if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setHasMicrophone(false);
+        setIsActive(false);
+        setError('Microphone is being used by another application.');
+        return false;
+      }
+      
+      // Handle other errors
+      console.warn('Microphone error (non-critical):', err.name, err.message);
+      setHasMicrophone(false);
       setIsActive(false);
       return false;
     }
@@ -470,12 +487,15 @@ export default function LiveLearningAssistant({
             
             <button
               onClick={handleToggle}
-              disabled={isRequestingPermission || isSupported === false}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg ${
+              disabled={isRequestingPermission || isSupported === false || hasMicrophone === false}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg relative ${
                 isActive
                   ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
+                  : hasMicrophone === false
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-accent to-accent/90 text-background hover:from-accent/90 hover:to-accent'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
+              title={hasMicrophone === false ? 'Microphone not available' : ''}
             >
               {isRequestingPermission ? (
                 <>
@@ -488,6 +508,11 @@ export default function LiveLearningAssistant({
                   <MicOff className="h-5 w-5" />
                   Stop
                 </>
+              ) : hasMicrophone === false ? (
+                <>
+                  <MicOff className="h-5 w-5" />
+                  No Mic
+                </>
               ) : (
                 <>
                   <Mic className="h-5 w-5" />
@@ -498,10 +523,21 @@ export default function LiveLearningAssistant({
           </div>
         </div>
 
-        {/* Error Message */}
+        {/* Status Messages */}
         {error && (
-          <div className="px-6 py-3 bg-red-50 border-b border-red-100">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="px-6 py-3 bg-yellow-50 border-b border-yellow-200">
+            <p className="text-sm text-yellow-800 flex items-center gap-2">
+              <span className="w-2 h-2 bg-yellow-500 rounded-full" />
+              {error}
+            </p>
+          </div>
+        )}
+        {hasMicrophone === false && !error && (
+          <div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
+            <p className="text-sm text-blue-800 flex items-center gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full" />
+              Voice input unavailable. You can still type or paste text to translate.
+            </p>
           </div>
         )}
 
