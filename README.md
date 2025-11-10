@@ -11,11 +11,12 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 - User-friendly mobile/web interface with language preference toggles
 - Session history with export options
 - **Live video tutoring sessions** with HD video/audio conferencing
-- **Real-time transcription** - Understand what the professor says instantly
-- **Visual aids** - Automatic GIFs/animations for academic concepts (e.g., physics laws)
+- **Real-time translation** - See translations appear instantly as professor speaks (not after recording!)
+- **Instant visual aids** - GIFs/animations appear immediately when concepts are mentioned
+- **Active note-taking** - Take notes while listening, with automatic concept tagging
 - Screen sharing for presentations and document review
 - Real-time chat during tutoring sessions
-- Integrated translation support during calls
+- All features work simultaneously - listen, translate, see references, and take notes at the same time
 
 ## Tech Stack
 
@@ -86,16 +87,21 @@ npm run dev
 4. Share your Peer ID with your tutor/student (click the copy button)
 5. Features available during sessions:
    - Free WebRTC video and audio (no paid services!)
-   - **Real-time transcription** - Click "Start" to transcribe what's being said
-   - **Visual aids** - Automatic GIFs/animations appear for concepts like physics laws, chemical reactions, etc.
+   - **Live Learning Assistant** - Click "Start Listening" to activate:
+     - **Real-time translation** - See translations appear instantly as words are spoken
+     - **Instant visual references** - GIFs/animations appear immediately when concepts are mentioned (physics laws, chemical reactions, etc.)
+     - **Active note-taking** - Take notes while listening, with automatic concept tagging
    - Screen sharing for presentations
    - Real-time chat messaging
-   - Integrated translation panel
    - Mute/unmute audio and video controls
-6. **Understanding Features:**
-   - Enable transcription to see real-time text of what the professor says
-   - Visual aids automatically show relevant GIFs/animations for academic concepts
-   - Use translation features to translate academic terms to your language
+6. **How It Works:**
+   - Click "Start Listening" - The assistant begins transcribing in real-time
+   - **As professor speaks:**
+     - Original text appears on the left
+     - Translation appears instantly on the right (no waiting!)
+     - Visual aids (GIFs) appear immediately when concepts are detected
+   - **Take notes:** Add your own notes or click "Add Note" to save current transcription
+   - All features work simultaneously - you can listen, see translations, view visual aids, and take notes at the same time!
 7. Click "Leave" to exit the session
 
 ## Sample Lecture Texts

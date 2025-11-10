@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Video, VideoOff, Mic, MicOff, Monitor, X, MessageSquare, Send, Users, Copy } from 'lucide-react';
 import TranslationPanel from '@/components/TranslationPanel';
 import LanguageToggle from '@/components/LanguageToggle';
-import RealTimeTranscription from '@/components/RealTimeTranscription';
-import VisualAids from '@/components/VisualAids';
+import LiveLearningAssistant from '@/components/LiveLearningAssistant';
 import type { Language, Translation } from '@/types';
 
 interface PeerConnection {
@@ -30,8 +29,6 @@ export default function TutoringPage() {
   const [participants, setParticipants] = useState(1);
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [targetLang, setTargetLang] = useState<Language>('zh');
-  const [transcript, setTranscript] = useState('');
-  const [cumulativeTranscript, setCumulativeTranscript] = useState('');
   
   const peerRef = useRef<any>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -76,8 +73,6 @@ export default function TutoringPage() {
     }
     setIsInCall(false);
     setParticipants(1);
-    setTranscript('');
-    setCumulativeTranscript('');
   };
 
   const getLocalStream = async (video: boolean = true, audio: boolean = true) => {
@@ -282,15 +277,6 @@ export default function TutoringPage() {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
-    });
-  };
-
-  const handleTranscript = (text: string) => {
-    setTranscript(text);
-    setCumulativeTranscript((prev) => {
-      const updated = prev ? `${prev} ${text}` : text;
-      // Keep only last 2000 characters to avoid memory issues
-      return updated.slice(-2000);
     });
   };
 
@@ -550,15 +536,9 @@ export default function TutoringPage() {
                 </div>
               </div>
 
-              <RealTimeTranscription
-                audioStream={remoteStreamRef.current}
-                onTranscript={handleTranscript}
-                language={sourceLang}
-              />
-
-              <VisualAids
-                transcript={cumulativeTranscript}
-                language={sourceLang}
+              <LiveLearningAssistant
+                sourceLang={sourceLang}
+                targetLang={targetLang}
               />
 
               <div className="bg-surface rounded-lg p-4 shadow-sm">
