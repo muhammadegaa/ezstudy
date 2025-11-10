@@ -59,84 +59,8 @@ export default function LiveLearningAssistant({
     setIsSupported(!!SpeechRecognition);
   }, []);
 
-  // Request microphone permission - PRODUCTION READY: Handle all cases gracefully
-  const requestMicrophonePermission = async () => {
-    setIsRequestingPermission(true);
-    setError(null);
-    
-    try {
-      // First check if getUserMedia is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setHasMicrophone(false);
-        setIsRequestingPermission(false);
-        setIsActive(false);
-        return false;
-      }
-
-      // Request permission directly - browser will prompt user
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
-      
-      // Verify stream has audio tracks
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks.length === 0) {
-        stream.getTracks().forEach(track => track.stop());
-        setHasMicrophone(false);
-        setIsRequestingPermission(false);
-        setIsActive(false);
-        return false;
-      }
-      
-      // Keep stream briefly to ensure permission is granted
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Stop the stream - we just needed permission
-      stream.getTracks().forEach(track => track.stop());
-      
-      // Verify we have microphone access
-      setHasMicrophone(true);
-      setIsRequestingPermission(false);
-      return true;
-      
-    } catch (err: any) {
-      setIsRequestingPermission(false);
-      
-      // Handle NotFoundError gracefully - no microphone hardware
-      if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setHasMicrophone(false);
-        setIsActive(false);
-        // Don't show error - just disable voice features gracefully
-        return false;
-      }
-      
-      // Handle permission denied
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setHasMicrophone(false);
-        setIsActive(false);
-        setError('Microphone permission denied. Voice features disabled.');
-        return false;
-      }
-      
-      // Handle microphone in use
-      if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setHasMicrophone(false);
-        setIsActive(false);
-        setError('Microphone is being used by another application.');
-        return false;
-      }
-      
-      // Handle other errors
-      console.warn('Microphone error (non-critical):', err.name, err.message);
-      setHasMicrophone(false);
-      setIsActive(false);
-      return false;
-    }
-  };
+  // Speech Recognition handles microphone permission itself - don't pre-check!
+  // Just start recognition and let it request permission
 
   useEffect(() => {
     if (!isActive) {
@@ -181,7 +105,8 @@ export default function LiveLearningAssistant({
     recognition.onstart = () => {
       setError(null);
       setIsRequestingPermission(false);
-      console.log('✅ Speech recognition started');
+      setHasMicrophone(true);
+      console.log('✅ Speech recognition started - microphone working!');
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -217,10 +142,12 @@ export default function LiveLearningAssistant({
       setIsRequestingPermission(false);
       
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setError('Microphone access denied. Please allow in browser settings.');
+        setError('Microphone permission denied. Please allow microphone access in browser settings and refresh.');
+        setHasMicrophone(false);
         setIsActive(false);
       } else if (event.error === 'no-speech') {
-        // Normal - restart silently
+        // Normal - no speech detected, restart silently
+        setHasMicrophone(true); // Microphone is working, just no speech
         if (isActive && recognitionRef.current) {
           setTimeout(() => {
             try {
@@ -234,14 +161,18 @@ export default function LiveLearningAssistant({
         }
       } else if (event.error === 'aborted') {
         // User stopped, ignore
+        setHasMicrophone(true); // Microphone was working
       } else if (event.error === 'audio-capture') {
-        setError('Microphone not working. Please check your microphone.');
+        setError('Microphone not found or not working. Please connect a microphone.');
+        setHasMicrophone(false);
         setIsActive(false);
       } else if (event.error === 'network') {
-        setError('Network error. Please check your connection.');
+        setError('Network error. Please check your internet connection.');
+        setHasMicrophone(true); // Microphone is fine, network issue
         setIsActive(false);
       } else {
-        // Try to restart for other errors
+        // For other errors, try to restart
+        setHasMicrophone(true); // Assume microphone is fine
         if (isActive && recognitionRef.current && event.error !== 'bad-grammar' && event.error !== 'language-not-supported') {
           setTimeout(() => {
             try {
@@ -274,40 +205,24 @@ export default function LiveLearningAssistant({
 
     recognitionRef.current = recognition;
     
-    // Request permission and start
-    const startRecognition = async () => {
-      const hasPermission = await requestMicrophonePermission();
-      if (!hasPermission) {
+    // Start recognition directly - it will request microphone permission
+    setIsRequestingPermission(true);
+    try {
+      recognition.start();
+      console.log('✅ Speech recognition starting - will request microphone permission');
+      setHasMicrophone(true); // Assume it will work, will be set to false on error
+    } catch (e: any) {
+      console.error('Failed to start recognition:', e);
+      setIsRequestingPermission(false);
+      if (e.message && e.message.includes('already started')) {
+        console.log('Recognition already running');
+        setHasMicrophone(true);
+      } else {
+        setError(`Failed to start listening: ${e.message || 'Unknown error'}`);
+        setHasMicrophone(false);
         setIsActive(false);
-        return;
       }
-      
-      if (!isActive || !recognitionRef.current) {
-        return;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      if (!isActive || !recognitionRef.current) {
-        return;
-      }
-      
-      try {
-        recognitionRef.current.start();
-        console.log('✅ Speech recognition started successfully');
-      } catch (e: any) {
-        console.error('Failed to start recognition:', e);
-        if (e.message && e.message.includes('already started')) {
-          console.log('Recognition already running');
-        } else {
-          setError(`Failed to start: ${e.message || 'Unknown error'}`);
-          setIsActive(false);
-          setIsRequestingPermission(false);
-        }
-      }
-    };
-
-    startRecognition();
+    }
 
     return () => {
       if (recognitionRef.current) {
@@ -487,31 +402,23 @@ export default function LiveLearningAssistant({
             
             <button
               onClick={handleToggle}
-              disabled={isRequestingPermission || isSupported === false || hasMicrophone === false}
+              disabled={isRequestingPermission || isSupported === false}
               className={`px-6 py-3 rounded-xl font-semibold transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg relative ${
                 isActive
                   ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
-                  : hasMicrophone === false
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-accent to-accent/90 text-background hover:from-accent/90 hover:to-accent'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
-              title={hasMicrophone === false ? 'Microphone not available' : ''}
             >
               {isRequestingPermission ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Requesting...
+                  Starting...
                 </>
               ) : isActive ? (
                 <>
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full animate-pulse" />
                   <MicOff className="h-5 w-5" />
-                  Stop
-                </>
-              ) : hasMicrophone === false ? (
-                <>
-                  <MicOff className="h-5 w-5" />
-                  No Mic
+                  Stop Listening
                 </>
               ) : (
                 <>
@@ -529,14 +436,6 @@ export default function LiveLearningAssistant({
             <p className="text-sm text-yellow-800 flex items-center gap-2">
               <span className="w-2 h-2 bg-yellow-500 rounded-full" />
               {error}
-            </p>
-          </div>
-        )}
-        {hasMicrophone === false && !error && (
-          <div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
-            <p className="text-sm text-blue-800 flex items-center gap-2">
-              <span className="w-2 h-2 bg-blue-500 rounded-full" />
-              Voice input unavailable. You can still type or paste text to translate.
             </p>
           </div>
         )}
