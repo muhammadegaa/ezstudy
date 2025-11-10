@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Loader2, BookOpen, Save, Download } from 'lucide-react';
+import { Mic, MicOff, Loader2, BookOpen, Save, Download, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import type { Language } from '@/types';
 
 interface Concept {
@@ -41,18 +41,51 @@ export default function LiveLearningAssistant({
   const [notes, setNotes] = useState<Note[]>([]);
   const [currentNote, setCurrentNote] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSupported, setIsSupported] = useState<boolean | null>(null);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const translationQueueRef = useRef<string[]>([]);
-  const conceptAnalysisQueueRef = useRef<string[]>([]);
-  const isProcessingRef = useRef(false);
+  const cumulativeTextRef = useRef('');
+
+  // Check browser support
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    setIsSupported(!!SpeechRecognition);
+  }, []);
+
+  // Request microphone permission
+  const requestMicrophonePermission = async () => {
+    setIsRequestingPermission(true);
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      setIsRequestingPermission(false);
+      return true;
+    } catch (err: any) {
+      setIsRequestingPermission(false);
+      setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (!isActive) {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Ignore
+        }
         recognitionRef.current = null;
       }
+      return;
+    }
+
+    if (isSupported === false) {
+      setError('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
+      setIsActive(false);
       return;
     }
 
@@ -61,7 +94,7 @@ export default function LiveLearningAssistant({
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert('Speech recognition not supported in your browser. Please use Chrome or Edge.');
+      setError('Speech recognition not available');
       setIsActive(false);
       return;
     }
@@ -77,6 +110,11 @@ export default function LiveLearningAssistant({
     };
     recognition.lang = langMap[sourceLang] || 'en-GB';
 
+    recognition.onstart = () => {
+      setError(null);
+      console.log('Speech recognition started');
+    };
+
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interimText = '';
       let finalText = '';
@@ -91,7 +129,8 @@ export default function LiveLearningAssistant({
       }
 
       const fullText = finalText + interimText;
-      setOriginalText(fullText);
+      cumulativeTextRef.current = cumulativeTextRef.current + ' ' + finalText;
+      setOriginalText(cumulativeTextRef.current.trim() + ' ' + interimText);
 
       // Real-time translation for final results
       if (finalText.trim()) {
@@ -101,28 +140,53 @@ export default function LiveLearningAssistant({
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error !== 'no-speech') {
-        console.error('Speech recognition error:', event.error);
+      console.error('Speech recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        setError('Microphone access denied. Please allow microphone access and try again.');
+        setIsActive(false);
+      } else if (event.error === 'no-speech') {
+        // This is normal, just restart
+        if (isActive) {
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.error('Failed to restart:', e);
+            }
+          }, 100);
+        }
+      } else if (event.error !== 'aborted') {
+        setError(`Speech recognition error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
       if (isActive) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.error('Failed to restart recognition:', e);
-        }
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.error('Failed to restart recognition:', e);
+            setIsActive(false);
+          }
+        }, 100);
       }
     };
 
     recognitionRef.current = recognition;
     
-    try {
-      recognition.start();
-    } catch (e) {
-      console.error('Failed to start recognition:', e);
-    }
+    // Request permission first
+    requestMicrophonePermission().then((hasPermission) => {
+      if (hasPermission && isActive) {
+        try {
+          recognition.start();
+        } catch (e: any) {
+          console.error('Failed to start recognition:', e);
+          setError('Failed to start listening. Please check your microphone permissions.');
+          setIsActive(false);
+        }
+      }
+    });
 
     return () => {
       if (recognitionRef.current) {
@@ -134,11 +198,11 @@ export default function LiveLearningAssistant({
         recognitionRef.current = null;
       }
     };
-  }, [isActive, sourceLang]);
+  }, [isActive, sourceLang, isSupported]);
 
   const translateInRealTime = async (text: string) => {
     if (!text.trim() || sourceLang === targetLang) {
-      setTranslatedText(text);
+      setTranslatedText((prev) => prev + ' ' + text);
       return;
     }
 
@@ -170,7 +234,6 @@ export default function LiveLearningAssistant({
   };
 
   const analyzeConceptsInRealTime = async (text: string) => {
-    // Analyze smaller chunks immediately
     if (text.length < 10) return;
 
     try {
@@ -184,14 +247,12 @@ export default function LiveLearningAssistant({
         const data = await response.json();
         const newConcepts = data.concepts || [];
         
-        // Add new concepts that aren't already present
         setConcepts((prev) => {
           const existingNames = new Set(prev.map(c => c.name));
           const uniqueNew = newConcepts.filter((c: Concept) => !existingNames.has(c.name));
           return [...prev, ...uniqueNew];
         });
 
-        // Fetch GIFs immediately for new concepts
         newConcepts.forEach((concept: Concept) => {
           fetchGifForConcept(concept);
         });
@@ -211,7 +272,7 @@ export default function LiveLearningAssistant({
         setGifs((prev) => {
           const newMap = new Map(prev);
           if (!newMap.has(concept.name) && data.gifs && data.gifs.length > 0) {
-            newMap.set(concept.name, data.gifs.slice(0, 2)); // Limit to 2 GIFs per concept
+            newMap.set(concept.name, data.gifs.slice(0, 2));
           }
           return newMap;
         });
@@ -224,11 +285,10 @@ export default function LiveLearningAssistant({
   const addNote = () => {
     if (!currentNote.trim() && !originalText.trim()) return;
 
-    const noteText = currentNote.trim() || originalText.trim();
     const note: Note = {
       id: Date.now().toString(),
       timestamp: new Date(),
-      original: originalText,
+      original: originalText || currentNote,
       translated: translatedText,
       concepts: concepts.map(c => c.name),
     };
@@ -256,25 +316,57 @@ export default function LiveLearningAssistant({
     URL.revokeObjectURL(url);
   };
 
+  const handleToggle = async () => {
+    if (!isActive) {
+      // Starting - request permission first
+      const hasPermission = await requestMicrophonePermission();
+      if (hasPermission) {
+        setIsActive(true);
+        setError(null);
+        cumulativeTextRef.current = '';
+        setOriginalText('');
+        setTranslatedText('');
+      }
+    } else {
+      // Stopping
+      setIsActive(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Control Panel */}
-      <div className="bg-surface rounded-lg p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-text">Live Learning Assistant</h3>
-            <p className="text-xs text-accent">Real-time translation, concepts & notes</p>
+      {/* Main Control Card - Premium Design */}
+      <div className="bg-gradient-to-br from-surface via-surface to-accent/20 rounded-2xl p-6 shadow-lg border border-accent/20">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`p-2 rounded-xl ${isActive ? 'bg-red-500/10' : 'bg-accent/10'}`}>
+                <Sparkles className={`h-6 w-6 ${isActive ? 'text-red-500' : 'text-accent'}`} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-text">Live Learning Assistant</h3>
+                <p className="text-sm text-accent mt-1">Real-time translation • Visual aids • Smart notes</p>
+              </div>
+            </div>
           </div>
+          
           <button
-            onClick={() => setIsActive(!isActive)}
-            className={`px-6 py-3 rounded-lg transition-colors flex items-center gap-2 ${
+            onClick={handleToggle}
+            disabled={isRequestingPermission || isSupported === false}
+            className={`relative px-8 py-4 rounded-xl font-semibold transition-all transform hover:scale-105 active:scale-95 flex items-center gap-3 shadow-lg ${
               isActive
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'bg-accent text-background hover:bg-opacity-80'
-            }`}
+                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
+                : 'bg-gradient-to-r from-accent to-accent/90 text-background hover:from-accent/90 hover:to-accent'
+            } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
           >
-            {isActive ? (
+            {isRequestingPermission ? (
               <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Requesting...
+              </>
+            ) : isActive ? (
+              <>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full animate-pulse" />
                 <MicOff className="h-5 w-5" />
                 Stop Listening
               </>
@@ -287,30 +379,53 @@ export default function LiveLearningAssistant({
           </button>
         </div>
 
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {isSupported === false && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-yellow-800">
+                Speech recognition requires Chrome, Edge, or Safari. Your current browser doesn&apos;t support this feature.
+              </p>
+            </div>
+          </div>
+        )}
+
         {isActive && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
             {/* Original Text */}
-            <div className="bg-background rounded p-3 min-h-[150px] max-h-[200px] overflow-y-auto">
-              <div className="text-xs font-semibold text-accent mb-2">Original ({sourceLang})</div>
-              <p className="text-sm text-text whitespace-pre-wrap">
+            <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20 min-h-[180px] max-h-[250px] overflow-y-auto">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <div className="text-xs font-semibold text-accent uppercase tracking-wide">Original ({sourceLang})</div>
+              </div>
+              <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">
                 {originalText || (
-                  <span className="text-accent flex items-center gap-2">
+                  <span className="text-accent/60 flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Listening...
+                    Listening to professor...
                   </span>
                 )}
               </p>
             </div>
 
             {/* Translated Text */}
-            <div className="bg-background rounded p-3 min-h-[150px] max-h-[200px] overflow-y-auto">
-              <div className="text-xs font-semibold text-accent mb-2">
-                Translation ({targetLang})
-                {isTranslating && <Loader2 className="h-3 w-3 inline-block ml-2 animate-spin" />}
+            <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 border border-accent/20 min-h-[180px] max-h-[250px] overflow-y-auto">
+              <div className="flex items-center gap-2 mb-3">
+                {isTranslating && <Loader2 className="h-3 w-3 animate-spin text-accent" />}
+                <div className="text-xs font-semibold text-accent uppercase tracking-wide">Translation ({targetLang})</div>
               </div>
-              <p className="text-sm text-text whitespace-pre-wrap">
+              <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">
                 {translatedText || (
-                  <span className="text-accent">Translation will appear here...</span>
+                  <span className="text-accent/60">Translation will appear here...</span>
                 )}
               </p>
             </div>
@@ -318,26 +433,29 @@ export default function LiveLearningAssistant({
         )}
       </div>
 
-      {/* Visual Aids - Show immediately */}
+      {/* Visual Aids - Premium Grid */}
       {isActive && concepts.length > 0 && (
-        <div className="bg-surface rounded-lg p-4 shadow-sm">
-          <h4 className="text-sm font-semibold text-text mb-3 flex items-center gap-2">
-            <Loader2 className="h-4 w-4" />
-            Visual References (Live)
-          </h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-gradient-to-br from-surface to-surface/80 rounded-2xl p-6 shadow-lg border border-accent/20">
+          <div className="flex items-center gap-3 mb-4">
+            <Sparkles className="h-5 w-5 text-accent" />
+            <h4 className="text-lg font-bold text-text">Visual References</h4>
+            <span className="px-2 py-1 bg-accent/20 text-accent text-xs font-semibold rounded-full">
+              {concepts.length} concepts
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {concepts.slice(0, 8).map((concept) => {
               const conceptGifs = gifs.get(concept.name) || [];
               return (
                 <div
                   key={concept.name}
-                  className="bg-background rounded-lg p-2 border border-accent/30"
+                  className="bg-background/80 backdrop-blur-sm rounded-xl p-3 border border-accent/20 hover:border-accent/40 transition-all hover:shadow-md"
                 >
-                  <div className="text-xs font-semibold text-text mb-1 truncate">
+                  <div className="text-xs font-bold text-text mb-2 line-clamp-2 min-h-[2.5rem]">
                     {concept.name}
                   </div>
                   {conceptGifs.length > 0 ? (
-                    <div className="aspect-video rounded overflow-hidden bg-black">
+                    <div className="aspect-video rounded-lg overflow-hidden bg-black/10">
                       <img
                         src={conceptGifs[0].url}
                         alt={concept.name}
@@ -346,7 +464,7 @@ export default function LiveLearningAssistant({
                       />
                     </div>
                   ) : (
-                    <div className="aspect-video rounded bg-accent/20 flex items-center justify-center">
+                    <div className="aspect-video rounded-lg bg-accent/10 flex items-center justify-center">
                       <Loader2 className="h-4 w-4 animate-spin text-accent" />
                     </div>
                   )}
@@ -357,39 +475,46 @@ export default function LiveLearningAssistant({
         </div>
       )}
 
-      {/* Note Taking */}
+      {/* Note Taking - Premium Design */}
       {isActive && (
-        <div className="bg-surface rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-text flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Active Notes
-            </h4>
+        <div className="bg-gradient-to-br from-surface to-surface/80 rounded-2xl p-6 shadow-lg border border-accent/20">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-accent/10 rounded-lg">
+                <BookOpen className="h-5 w-5 text-accent" />
+              </div>
+              <h4 className="text-lg font-bold text-text">Active Notes</h4>
+              {notes.length > 0 && (
+                <span className="px-2 py-1 bg-accent/20 text-accent text-xs font-semibold rounded-full">
+                  {notes.length} saved
+                </span>
+              )}
+            </div>
             {notes.length > 0 && (
               <button
                 onClick={saveNotes}
-                className="px-3 py-1 text-xs bg-accent text-background rounded hover:bg-opacity-80 transition-colors flex items-center gap-1"
+                className="px-4 py-2 bg-accent text-background rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2 text-sm font-medium shadow-md"
               >
-                <Download className="h-3 w-3" />
-                Save ({notes.length})
+                <Download className="h-4 w-4" />
+                Export
               </button>
             )}
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-3">
             <textarea
               value={currentNote}
               onChange={(e) => setCurrentNote(e.target.value)}
-              placeholder="Add your own notes here... (or click 'Add Note' to save current transcription)"
-              className="w-full px-3 py-2 rounded border border-accent bg-background text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+              placeholder="Add your own notes here... (or click 'Save Note' to capture current transcription)"
+              className="w-full px-4 py-3 rounded-xl border-2 border-accent/30 bg-background/80 backdrop-blur-sm text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent resize-none transition-all"
               rows={3}
             />
             <button
               onClick={addNote}
-              className="w-full px-4 py-2 bg-accent text-background rounded hover:bg-opacity-80 transition-colors flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-gradient-to-r from-accent to-accent/90 text-background rounded-xl hover:from-accent/90 hover:to-accent transition-all font-medium flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-[1.02]"
             >
               <Save className="h-4 w-4" />
-              Add Note
+              Save Note
             </button>
           </div>
 
@@ -398,15 +523,18 @@ export default function LiveLearningAssistant({
               {notes.map((note) => (
                 <div
                   key={note.id}
-                  className="bg-background rounded p-2 text-xs border border-accent/20"
+                  className="bg-background/60 backdrop-blur-sm rounded-lg p-3 border border-accent/20 text-xs"
                 >
-                  <div className="text-accent font-semibold mb-1">
-                    {note.timestamp.toLocaleTimeString()}
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <span className="text-accent font-semibold">
+                      {note.timestamp.toLocaleTimeString()}
+                    </span>
                   </div>
-                  <div className="text-text">{note.original.substring(0, 100)}...</div>
+                  <div className="text-text line-clamp-2">{note.original.substring(0, 100)}...</div>
                   {note.concepts.length > 0 && (
-                    <div className="text-accent mt-1">
-                      Concepts: {note.concepts.slice(0, 3).join(', ')}
+                    <div className="text-accent mt-1 text-xs">
+                      {note.concepts.slice(0, 3).join(' • ')}
                     </div>
                   )}
                 </div>
@@ -418,4 +546,3 @@ export default function LiveLearningAssistant({
     </div>
   );
 }
-
