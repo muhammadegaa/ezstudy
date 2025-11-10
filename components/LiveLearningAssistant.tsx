@@ -61,20 +61,31 @@ export default function LiveLearningAssistant({
     setIsSupported(!!SpeechRecognition);
   }, []);
 
-  // Check microphone permission status
+  // Check microphone permission status on mount
   useEffect(() => {
     const checkPermission = async () => {
       try {
+        // Try Permissions API first
         if (navigator.permissions && navigator.permissions.query) {
-          const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-          setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
-          
-          result.onchange = () => {
+          try {
+            const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
             setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
-          };
+            
+            result.onchange = () => {
+              setPermissionState(result.state as 'granted' | 'denied' | 'prompt');
+            };
+          } catch (e) {
+            // Permissions API might not support 'microphone', that's fine
+            // Default to 'prompt' - user hasn't been asked yet
+            setPermissionState('prompt');
+          }
+        } else {
+          // Permissions API not available, default to 'prompt'
+          setPermissionState('prompt');
         }
       } catch (e) {
-        // Permissions API not supported, that's fine
+        // Default to 'prompt' if anything fails
+        setPermissionState('prompt');
       }
     };
     checkPermission();
@@ -84,10 +95,22 @@ export default function LiveLearningAssistant({
   const requestMicrophonePermission = async (): Promise<boolean> => {
     setIsRequestingPermission(true);
     setError(null);
+    console.log('🔵 Requesting microphone permission...');
     
     try {
-      // Explicitly request microphone permission
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('Microphone access not available in this browser.');
+        setIsRequestingPermission(false);
+        setShowPermissionPrompt(false);
+        return false;
+      }
+
+      // Explicitly request microphone permission - THIS TRIGGERS BROWSER DIALOG
+      console.log('🔵 Calling getUserMedia - browser should show permission dialog now...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      console.log('✅ Microphone permission granted!');
       
       // Got permission! Stop the stream (we just needed permission)
       stream.getTracks().forEach(track => track.stop());
@@ -99,12 +122,13 @@ export default function LiveLearningAssistant({
       return true;
       
     } catch (err: any) {
+      console.error('❌ Microphone permission error:', err.name, err.message);
       setIsRequestingPermission(false);
       
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setPermissionState('denied');
         setHasMicrophone(false);
-        setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+        setError('Microphone permission denied. Please allow microphone access in your browser settings and refresh the page.');
         setShowPermissionPrompt(false);
         return false;
       } else if (err.name === 'NotFoundError') {
@@ -438,9 +462,10 @@ export default function LiveLearningAssistant({
 
   const handleToggle = async () => {
     if (!isActive) {
-      // ALWAYS check permission first - don't start until granted
+      // ALWAYS show permission prompt first if not granted
       if (permissionState !== 'granted' && hasMicrophone !== true) {
         setShowPermissionPrompt(true);
+        setError(null);
         return;
       }
       
@@ -541,33 +566,41 @@ export default function LiveLearningAssistant({
                 </div>
                 <p className="text-sm text-blue-800 mb-3">
                   ezstudy needs access to your microphone to provide real-time speech translation. 
-                  Click &quot;Allow Microphone&quot; to enable voice input.
+                  Click &quot;Allow Microphone&quot; below and then click &quot;Allow&quot; in the browser permission dialog that appears.
                 </p>
                 <div className="flex gap-3">
                   <button
                     onClick={handleAllowPermission}
                     disabled={isRequestingPermission}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg"
                   >
                     {isRequestingPermission ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Requesting...
+                        Waiting for permission...
                       </>
                     ) : (
                       <>
-                        <Mic className="h-4 w-4" />
+                        <Mic className="h-5 w-5" />
                         Allow Microphone
                       </>
                     )}
                   </button>
                   <button
-                    onClick={() => setShowPermissionPrompt(false)}
+                    onClick={() => {
+                      setShowPermissionPrompt(false);
+                      setError(null);
+                    }}
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                   >
                     Cancel
                   </button>
                 </div>
+                {isRequestingPermission && (
+                  <p className="text-xs text-blue-700 mt-2">
+                    ⚠️ If you don&apos;t see a browser permission dialog, check your browser&apos;s address bar for a microphone icon.
+                  </p>
+                )}
               </div>
             </div>
           </div>
