@@ -78,6 +78,53 @@ npm run dev
 - **Quantum mechanics**: A branch of physics dealing with atomic and subatomic systems
 - **Wave-particle duality**: The concept that matter exhibits both wave and particle characteristics
 
+## Deployment to Vercel
+
+### Option 1: Deploy via Vercel Dashboard (Recommended)
+
+1. Go to [Vercel](https://vercel.com) and sign in with your GitHub account
+2. Click "Add New Project"
+3. Import your GitHub repository: `muhammadegaa/ezstudy`
+4. Configure environment variables:
+   - `OPENROUTER_API_KEY` - Your OpenRouter API key
+   - `NEXT_PUBLIC_APP_URL` - Your Vercel deployment URL (will be auto-filled)
+5. Click "Deploy"
+6. Wait for deployment to complete
+
+### Option 2: Deploy via Vercel CLI
+
+1. Install Vercel CLI:
+```bash
+npm i -g vercel
+```
+
+2. Login to Vercel:
+```bash
+vercel login
+```
+
+3. Deploy:
+```bash
+vercel
+```
+
+4. Add environment variables in Vercel dashboard or via CLI:
+```bash
+vercel env add OPENROUTER_API_KEY
+vercel env add NEXT_PUBLIC_APP_URL
+```
+
+5. Redeploy with environment variables:
+```bash
+vercel --prod
+```
+
+### Environment Variables in Vercel
+
+Make sure to add these environment variables in your Vercel project settings:
+- `OPENROUTER_API_KEY` - Your OpenRouter API key (required)
+- `NEXT_PUBLIC_APP_URL` - Your Vercel deployment URL (auto-set, but can be manually configured)
+
 ## Project Structure
 
 - `/app` - Next.js app router pages and API routes
