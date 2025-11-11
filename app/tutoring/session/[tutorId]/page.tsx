@@ -242,6 +242,22 @@ export default function TutoringSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, actualSessionId, isTutorSession, tutorId, router, addToast]);
 
+  // Sync video element with stream and state
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      // Ensure video element has the stream
+      if (localVideoRef.current.srcObject !== localStreamRef.current) {
+        console.log('🔄 Syncing video element with stream');
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      
+      // Play if camera is on
+      if (!isVideoOff) {
+        localVideoRef.current.play().catch(console.error);
+      }
+    }
+  }, [isVideoOff]);
+
   // Initialize PeerJS on mount - SINGLE INSTANCE ONLY
   useEffect(() => {
     if (typeof window === 'undefined' || loading || authLoading) return;
@@ -685,39 +701,44 @@ export default function TutoringSessionPage() {
 
   const getLocalStream = async (video: boolean, audio: boolean) => {
     try {
-      console.log('🎥 Requesting media stream:', { video, audio, hasExistingStream: !!localStreamRef.current });
+      console.log('🎥 getLocalStream called:', { video, audio, hasExistingStream: !!localStreamRef.current });
       
-      // If we have an existing stream, just update track states
+      // If we have an existing stream, just toggle tracks
       if (localStreamRef.current) {
+        console.log('📹 Updating existing stream tracks');
         const videoTracks = localStreamRef.current.getVideoTracks();
         const audioTracks = localStreamRef.current.getAudioTracks();
         
         // Update video tracks
         videoTracks.forEach(track => {
+          const wasEnabled = track.enabled;
           track.enabled = video;
+          console.log(`Video track ${track.id}: ${wasEnabled} → ${track.enabled}, readyState=${track.readyState}`);
         });
         
         // Update audio tracks
         audioTracks.forEach(track => {
+          const wasEnabled = track.enabled;
           track.enabled = audio;
+          console.log(`Audio track ${track.id}: ${wasEnabled} → ${track.enabled}, readyState=${track.readyState}`);
         });
         
-        // Update state to match track states
-        setIsVideoOff(!video);
-        setIsMuted(!audio);
+        // Sync state with actual track states
+        const videoEnabled = videoTracks.length > 0 ? videoTracks[0].enabled : false;
+        const audioEnabled = audioTracks.length > 0 ? audioTracks[0].enabled : false;
         
-        console.log('✅ Updated existing stream tracks:', { 
-          videoEnabled: video, 
-          audioEnabled: audio,
-          videoTracksCount: videoTracks.length,
-          audioTracksCount: audioTracks.length
-        });
+        setIsVideoOff(!videoEnabled);
+        setIsMuted(!audioEnabled);
         
+        console.log('✅ Stream tracks updated, state synced:', { videoEnabled, audioEnabled });
         return localStreamRef.current;
       }
 
       // No existing stream - request new one
-      // Always request both video and audio to get permissions, then disable what we don't want
+      // CRITICAL: Request BOTH video and audio to ensure permission dialog appears
+      // Even if user only wants one, we need both for permissions
+      console.log('📹 Requesting NEW stream (will request both video and audio for permissions)');
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           width: { ideal: 1280 },
@@ -726,20 +747,20 @@ export default function TutoringSessionPage() {
         audio: true,
       });
       
-      console.log('✅ Got new media stream:', {
+      console.log('✅ Got new stream:', {
         videoTracks: stream.getVideoTracks().length,
         audioTracks: stream.getAudioTracks().length
       });
       
-      // Set track enabled states based on what user wants
+      // Set tracks to desired state (may have been granted both, but user wants specific state)
       stream.getVideoTracks().forEach(track => {
         track.enabled = video;
-        console.log(`Video track ${track.id}: enabled=${video}`);
+        console.log(`Video track ${track.id}: enabled=${track.enabled}`);
       });
       
       stream.getAudioTracks().forEach(track => {
         track.enabled = audio;
-        console.log(`Audio track ${track.id}: enabled=${audio}`);
+        console.log(`Audio track ${track.id}: enabled=${track.enabled}`);
       });
       
       localStreamRef.current = stream;
@@ -748,26 +769,33 @@ export default function TutoringSessionPage() {
       setIsVideoOff(!video);
       setIsMuted(!audio);
       
-      // Update video element
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
-        localVideoRef.current.play().catch(err => {
-          console.error('Error playing local video:', err);
-        });
-        console.log('✅ Video element updated with stream');
-      }
+      // Update video element - use setTimeout to ensure DOM is ready
+      setTimeout(() => {
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.muted = true;
+          localVideoRef.current.play().then(() => {
+            console.log('✅ Video playing');
+          }).catch(err => {
+            console.error('❌ Video play error:', err);
+          });
+        }
+      }, 100);
       
       return stream;
     } catch (error: any) {
-      console.error('❌ Error accessing media devices:', error);
-      addToast({ 
-        title: 'Permission Denied', 
-        description: error.name === 'NotAllowedError' 
-          ? 'Please allow camera and microphone access in your browser settings'
-          : error.message || 'Failed to access camera/microphone',
-        type: 'error' 
-      });
+      console.error('❌ getLocalStream error:', error);
+      
+      let errorMessage = 'Failed to access camera/microphone';
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Permission denied. Please allow camera and microphone access in your browser settings.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera or microphone found.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera/microphone is being used by another application.';
+      }
+      
+      addToast({ title: 'Permission Error', description: errorMessage, type: 'error' });
       throw error;
     }
   };
@@ -934,26 +962,19 @@ export default function TutoringSessionPage() {
                               const newVideoState = !isVideoOff;
                               const currentAudioState = !isMuted;
                               
-                              console.log('🎥 Toggling camera:', { 
-                                current: isVideoOff, 
-                                new: newVideoState,
+                              console.log('🎥 Camera button clicked:', { 
+                                currentVideoOff: isVideoOff,
+                                newVideoState,
+                                currentAudioState,
                                 hasStream: !!localStreamRef.current
                               });
                               
                               await getLocalStream(newVideoState, currentAudioState);
                               
-                              addToast({ 
-                                title: newVideoState ? 'Camera On' : 'Camera Off', 
-                                description: newVideoState ? 'Your camera is now visible' : 'Your camera is now hidden',
-                                type: 'success' 
-                              });
+                              // State is updated inside getLocalStream, but ensure UI reflects it
+                              console.log('✅ Camera toggle complete');
                             } catch (error: any) {
-                              console.error('❌ Failed to toggle video:', error);
-                              addToast({ 
-                                title: 'Camera Error', 
-                                description: error.message || 'Failed to toggle camera. Please check permissions.',
-                                type: 'error' 
-                              });
+                              console.error('❌ Camera toggle failed:', error);
                             }
                           }}
                           className={`p-3 rounded-full transition-all min-w-[44px] min-h-[44px] ${
@@ -971,26 +992,19 @@ export default function TutoringSessionPage() {
                               const currentVideoState = !isVideoOff;
                               const newAudioState = !isMuted;
                               
-                              console.log('🎤 Toggling microphone:', { 
-                                current: isMuted, 
-                                new: newAudioState,
+                              console.log('🎤 Microphone button clicked:', { 
+                                currentMuted: isMuted,
+                                newAudioState,
+                                currentVideoState,
                                 hasStream: !!localStreamRef.current
                               });
                               
                               await getLocalStream(currentVideoState, newAudioState);
                               
-                              addToast({ 
-                                title: newAudioState ? 'Microphone On' : 'Microphone Off', 
-                                description: newAudioState ? 'Your microphone is now active' : 'Your microphone is now muted',
-                                type: 'success' 
-                              });
+                              // State is updated inside getLocalStream
+                              console.log('✅ Microphone toggle complete');
                             } catch (error: any) {
-                              console.error('❌ Failed to toggle audio:', error);
-                              addToast({ 
-                                title: 'Microphone Error', 
-                                description: error.message || 'Failed to toggle microphone. Please check permissions.',
-                                type: 'error' 
-                              });
+                              console.error('❌ Microphone toggle failed:', error);
                             }
                           }}
                           className={`p-3 rounded-full transition-all min-w-[44px] min-h-[44px] ${
