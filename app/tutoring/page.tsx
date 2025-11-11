@@ -14,6 +14,7 @@ import { SkeletonTutorCard } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
 import MobileNav from '@/components/Navigation/MobileNav';
 import Breadcrumbs from '@/components/Navigation/Breadcrumbs';
+import Tooltip from '@/components/Onboarding/Tooltip';
 
 // UI-friendly tutor type (without Firestore Timestamps)
 interface UITutor {
@@ -773,13 +774,20 @@ export default function TutoringPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleBookSession(tutor.id)}
-                  className="w-full mt-4 px-4 py-3 h-11 min-h-[44px] bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                <Tooltip
+                  id={`book-session-${tutor.id}`}
+                  content={`Book a tutoring session with ${tutor.name}. You'll be able to join a video call with real-time translation and learning assistance.`}
+                  position="top"
+                  delay={2000}
                 >
-                  <Video className="h-5 w-5" />
-                  Book Session
-                </button>
+                  <button
+                    onClick={() => handleBookSession(tutor.id)}
+                    className="w-full mt-4 px-4 py-3 h-11 min-h-[44px] bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                  >
+                    <Video className="h-5 w-5" />
+                    Book Session
+                  </button>
+                </Tooltip>
               </div>
             ))}
           </div>

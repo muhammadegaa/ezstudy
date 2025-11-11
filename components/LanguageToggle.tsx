@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowLeftRight } from 'lucide-react';
+import Tooltip from '@/components/Onboarding/Tooltip';
 import type { Language } from '@/types';
 
 interface LanguageToggleProps {
@@ -58,13 +59,20 @@ export default function LanguageToggle({
         </div>
 
         {/* Swap Button */}
-        <button
-          onClick={handleSwap}
-          className="mt-8 p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-all transform hover:scale-110"
-          aria-label="Swap languages"
+        <Tooltip
+          id="swap-languages"
+          content="Click to swap the source and target languages. This is useful when you want to translate in the opposite direction."
+          position="top"
+          delay={2000}
         >
-          <ArrowLeftRight className="h-5 w-5" />
-        </button>
+          <button
+            onClick={handleSwap}
+            className="mt-8 p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-all transform hover:scale-110 min-w-[44px] min-h-[44px]"
+            aria-label="Swap languages"
+          >
+            <ArrowLeftRight className="h-5 w-5" />
+          </button>
+        </Tooltip>
 
         {/* Target Language */}
         <div className="flex-1">

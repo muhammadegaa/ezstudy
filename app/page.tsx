@@ -11,6 +11,9 @@ import { logOut } from '@/lib/firebase/auth';
 import AuthModal from '@/components/Auth/AuthModal';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
+import MobileNav from '@/components/Navigation/MobileNav';
+import WelcomeModal from '@/components/Onboarding/WelcomeModal';
+import Tooltip from '@/components/Onboarding/Tooltip';
 import type { Language, Session, Translation } from '@/types';
 
 // Lazy load LiveLearningAssistant (heavy component)
@@ -29,6 +32,7 @@ export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [targetLang, setTargetLang] = useState<Language>('zh');
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -54,6 +58,16 @@ export default function Home() {
       } catch (e) {
         console.error('Failed to load sessions:', e);
       }
+    }
+
+    // Check if user has completed onboarding
+    const onboardingComplete = localStorage.getItem('ezstudy_onboarding_complete');
+    if (!onboardingComplete) {
+      // Show welcome modal after a short delay for better UX
+      const timer = setTimeout(() => {
+        setShowWelcomeModal(true);
+      }, 1000);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -99,15 +113,22 @@ export default function Home() {
               {/* Mobile Navigation */}
               <MobileNav />
               
-              {/* Desktop Navigation */}
-              <div className="hidden lg:flex items-center gap-3">
-                <Link
-                  href="/tutoring"
-                  className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
-                >
-                  <Video className="h-4 w-4" />
-                  Find Tutors
-                </Link>
+                      {/* Desktop Navigation */}
+                      <div className="hidden lg:flex items-center gap-3">
+                        <Tooltip
+                          id="find-tutors-header"
+                          content="Browse and book tutoring sessions with expert tutors. Sessions include video calls with real-time translation and learning assistance."
+                          position="bottom"
+                          delay={2000}
+                        >
+                          <Link
+                            href="/tutoring"
+                            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
+                          >
+                            <Video className="h-4 w-4" />
+                            Find Tutors
+                          </Link>
+                        </Tooltip>
                 {user ? (
                 <div className="flex items-center gap-3">
                   <Link
@@ -224,6 +245,13 @@ export default function Home() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         initialMode={authMode}
+      />
+
+      {/* Welcome Modal */}
+      <WelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        onComplete={() => setShowWelcomeModal(false)}
       />
     </main>
   );
