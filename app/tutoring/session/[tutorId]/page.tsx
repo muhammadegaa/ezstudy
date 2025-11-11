@@ -249,30 +249,18 @@ export default function TutoringSessionPage() {
           updateSession(actualSessionId, { peerId: id }).catch(console.error);
         }
         
-        // For tutors: Auto-enter waiting room (like Google Meet)
-        if (isTutorSession && !localStreamRef.current && !showMediaPreview) {
-          // Auto-request media (camera/mic off by default) - like Google Meet
-          getLocalStream(false, false).then((stream) => {
-            // Tutor is now in waiting room, ready to accept calls
-            setConnectionStatus('connecting'); // Shows "Waiting for student..."
-          }).catch((err) => {
-            console.warn('Could not access media, continuing without:', err);
-            // Continue without media - student can still join
-          });
+        // For tutors: Don't auto-request media - let them enable it manually (like Google Meet)
+        // Tutors can enable camera/mic using the toggle buttons in the waiting room
+        if (isTutorSession) {
+          setConnectionStatus('connecting'); // Shows "Waiting for student..."
         }
         
-        // For students: Auto-join if tutor's peerId is available
-        if (!isTutorSession && session?.peerId && session.peerId !== id && user?.uid !== session.tutorId) {
-          setRemotePeerId(session.peerId);
-          // Auto-join immediately (like Google Meet)
+        // For students: Show media preview modal to enable camera/mic before joining
+        // Don't auto-request media - let user choose in MediaPreview modal
+        if (!isTutorSession && remotePeerId && remotePeerId !== id && !isInCall && !showMediaPreview) {
+          // Show media preview modal for students to enable camera/mic before joining
           setTimeout(() => {
-            getLocalStream(false, false).then((stream) => {
-              startCallWithStream(stream).catch(console.error);
-            }).catch((err) => {
-              console.warn('Could not access media, joining without:', err);
-              // Join without media if permission denied
-              startCallWithStream(new MediaStream()).catch(console.error);
-            });
+            setShowMediaPreview(true);
           }, 500);
         }
       });
@@ -547,14 +535,38 @@ export default function TutoringSessionPage() {
 
   const getLocalStream = async (video: boolean, audio: boolean) => {
     try {
+      // If requesting permissions, we need at least one to be true to trigger the permission dialog
+      // If both are false but we already have a stream, just toggle tracks
+      if (!video && !audio && localStreamRef.current) {
+        // Just toggle existing tracks
+        localStreamRef.current.getVideoTracks().forEach(track => {
+          track.enabled = false;
+        });
+        localStreamRef.current.getAudioTracks().forEach(track => {
+          track.enabled = false;
+        });
+        return localStreamRef.current;
+      }
+
+      // Request permissions: if both false, request both anyway (user can disable after)
+      // This ensures permission dialog appears
+      const requestedVideo = video || (!video && !audio && !localStreamRef.current);
+      const requestedAudio = audio || (!video && !audio && !localStreamRef.current);
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: video ? { 
+        video: requestedVideo ? { 
           width: { ideal: 1280 },
           height: { ideal: 720 },
         } : false,
-        audio: audio,
+        audio: requestedAudio,
       });
       
+      // Stop old tracks if we're replacing a stream
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      // Set track enabled states based on what user wants
       stream.getVideoTracks().forEach(track => {
         track.enabled = video;
       });
@@ -575,6 +587,13 @@ export default function TutoringSessionPage() {
       return stream;
     } catch (error: any) {
       console.error('Error accessing media devices:', error);
+      addToast({ 
+        title: 'Permission Denied', 
+        description: error.name === 'NotAllowedError' 
+          ? 'Please allow camera and microphone access in your browser settings'
+          : error.message || 'Failed to access camera/microphone',
+        type: 'error' 
+      });
       throw error;
     }
   };
@@ -723,35 +742,62 @@ export default function TutoringSessionPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
-                            if (!localStreamRef.current) {
-                              const stream = await getLocalStream(!isVideoOff, !isMuted);
-                            } else {
-                              const videoTrack = localStreamRef.current.getVideoTracks()[0];
-                              if (videoTrack) {
-                                videoTrack.enabled = !videoTrack.enabled;
-                                setIsVideoOff(!videoTrack.enabled);
+                            try {
+                              if (!localStreamRef.current) {
+                                // No stream yet - request with video enabled, keep current audio state
+                                const stream = await getLocalStream(true, !isMuted);
+                                setIsVideoOff(false);
+                                const audioTrack = stream.getAudioTracks()[0];
+                                setIsMuted(!(audioTrack?.enabled ?? false));
+                              } else {
+                                // Toggle existing video track
+                                const videoTrack = localStreamRef.current.getVideoTracks()[0];
+                                if (videoTrack) {
+                                  videoTrack.enabled = !videoTrack.enabled;
+                                  setIsVideoOff(!videoTrack.enabled);
+                                }
                               }
+                            } catch (error) {
+                              console.error('Failed to toggle video:', error);
                             }
                           }}
                           className={`p-3 rounded-full ${isVideoOff ? 'bg-red-600' : 'bg-gray-700'} text-white hover:opacity-80 transition-all`}
+                          aria-label={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
                         >
                           {isVideoOff ? <VideoCameraSlashIcon className="h-5 w-5" /> : <VideoCameraIcon className="h-5 w-5" />}
                         </button>
                         <button
                           onClick={async () => {
-                            if (!localStreamRef.current) {
-                              const stream = await getLocalStream(!isVideoOff, !isMuted);
-                            } else {
-                              const audioTrack = localStreamRef.current.getAudioTracks()[0];
-                              if (audioTrack) {
-                                audioTrack.enabled = !audioTrack.enabled;
-                                setIsMuted(!audioTrack.enabled);
+                            try {
+                              if (!localStreamRef.current) {
+                                // No stream yet - request with audio enabled, keep current video state
+                                const stream = await getLocalStream(!isVideoOff, true);
+                                setIsMuted(false);
+                                const videoTrack = stream.getVideoTracks()[0];
+                                setIsVideoOff(!(videoTrack?.enabled ?? false));
+                              } else {
+                                // Toggle existing audio track
+                                const audioTrack = localStreamRef.current.getAudioTracks()[0];
+                                if (audioTrack) {
+                                  audioTrack.enabled = !audioTrack.enabled;
+                                  setIsMuted(!audioTrack.enabled);
+                                }
                               }
+                            } catch (error) {
+                              console.error('Failed to toggle audio:', error);
                             }
                           }}
                           className={`p-3 rounded-full ${isMuted ? 'bg-red-600' : 'bg-gray-700'} text-white hover:opacity-80 transition-all`}
+                          aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
                         >
-                          {isMuted ? <MicrophoneIcon className="h-5 w-5" /> : <MicrophoneIcon className="h-5 w-5" />}
+                          {isMuted ? (
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+                            </svg>
+                          ) : (
+                            <MicrophoneIcon className="h-5 w-5" />
+                          )}
                         </button>
                       </div>
                     </div>
