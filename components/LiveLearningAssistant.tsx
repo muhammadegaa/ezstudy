@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Mic, MicOff, Loader2, BookOpen, Save, Download, Sparkles, Copy, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
 import type { Language } from '@/types';
 
@@ -827,12 +828,13 @@ export default function LiveLearningAssistant({
                     {concept.name}
                   </div>
                           {conceptGifs.length > 0 ? (
-                            <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 shadow-sm">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
+                            <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 shadow-sm relative">
+                              <Image
                                 src={conceptGifs[0].url}
                                 alt={`Visual aid for ${concept.name}`}
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 50vw, 25vw"
                                 loading="lazy"
                               />
                             </div>

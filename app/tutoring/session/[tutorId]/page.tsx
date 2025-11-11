@@ -14,8 +14,20 @@ import {
   CheckCircleIcon 
 } from '@heroicons/react/24/outline';
 import { Loader2 } from 'lucide-react';
-import LiveLearningAssistant from '@/components/LiveLearningAssistant';
+import dynamic from 'next/dynamic';
 import MediaPreview from '@/components/WebRTC/MediaPreview';
+
+// Lazy load LiveLearningAssistant (heavy component)
+const LiveLearningAssistant = dynamic(() => import('@/components/LiveLearningAssistant'), {
+  loading: () => (
+    <div className="card p-6">
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      </div>
+    </div>
+  ),
+  ssr: false,
+});
 import { useAuth } from '@/hooks/useAuth';
 import { getTutor, getTutorByUserId } from '@/lib/firebase/firestore';
 import { getSession, updateSession, type Session as FirestoreSession } from '@/lib/firebase/firestore';

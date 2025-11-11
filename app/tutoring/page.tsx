@@ -10,6 +10,7 @@ import { getUserSessions, createSession, updateSession, type Session as Firestor
 import { getUserProfile, createOrUpdateUserProfile } from '@/lib/firebase/userProfile';
 import { useToast } from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { SkeletonTutorCard } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
 
 // UI-friendly tutor type (without Firestore Timestamps)
@@ -716,9 +717,10 @@ export default function TutoringPage() {
 
         {/* Tutors Grid */}
         {loading ? (
-          <div className="card text-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
-            <p className="text-gray-600">Loading tutors...</p>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonTutorCard key={i} />
+            ))}
           </div>
         ) : filteredTutors.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

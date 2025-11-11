@@ -4,8 +4,20 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Video, Sparkles, BookOpen, Zap, Globe } from 'lucide-react';
 import LanguageToggle from '@/components/LanguageToggle';
-import LiveLearningAssistant from '@/components/LiveLearningAssistant';
+import dynamic from 'next/dynamic';
 import SessionHistory from '@/components/SessionHistory';
+
+// Lazy load LiveLearningAssistant (heavy component)
+const LiveLearningAssistant = dynamic(() => import('@/components/LiveLearningAssistant'), {
+  loading: () => (
+    <div className="card p-6">
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      </div>
+    </div>
+  ),
+  ssr: false,
+});
 import type { Language, Session, Translation } from '@/types';
 
 export default function Home() {
