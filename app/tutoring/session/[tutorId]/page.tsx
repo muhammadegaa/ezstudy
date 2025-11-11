@@ -252,6 +252,33 @@ export default function TutoringSessionPage() {
         if (actualSessionId && session && isTutorSession && !session.peerId) {
           updateSession(actualSessionId, { peerId: id }).catch(console.error);
         }
+        
+        // For tutors: Auto-enter waiting room (like Google Meet)
+        if (isTutorSession && !localStreamRef.current && !showMediaPreview) {
+          // Auto-request media (camera/mic off by default) - like Google Meet
+          getLocalStream(false, false).then((stream) => {
+            // Tutor is now in waiting room, ready to accept calls
+            setConnectionStatus('connecting'); // Shows "Waiting for student..."
+          }).catch((err) => {
+            console.warn('Could not access media, continuing without:', err);
+            // Continue without media - student can still join
+          });
+        }
+        
+        // For students: Auto-join if tutor's peerId is available
+        if (!isTutorSession && session?.peerId && session.peerId !== id && user?.uid !== session.tutorId) {
+          setRemotePeerId(session.peerId);
+          // Auto-join immediately (like Google Meet)
+          setTimeout(() => {
+            getLocalStream(false, false).then((stream) => {
+              startCallWithStream(stream).catch(console.error);
+            }).catch((err) => {
+              console.warn('Could not access media, joining without:', err);
+              // Join without media if permission denied
+              startCallWithStream(new MediaStream()).catch(console.error);
+            });
+          }, 500);
+        }
       });
 
       peer.on('error', (err: any) => {
@@ -416,7 +443,12 @@ export default function TutoringSessionPage() {
   };
 
   const startCallWithStream = async (stream: MediaStream) => {
-    if (!remotePeerId.trim()) {
+    if (!remotePeerId.trim() && !isTutorSession) {
+      return;
+    }
+    
+    // For tutors: just wait for incoming calls, don't initiate
+    if (isTutorSession) {
       return;
     }
 
@@ -667,73 +699,123 @@ export default function TutoringSessionPage() {
       <div className="container mx-auto px-6 py-12 max-w-7xl">
         <Breadcrumbs />
         {!isInCall ? (
-          <div className="max-w-2xl mx-auto card">
-            <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
-                <VideoCameraIcon className="h-10 w-10 text-white" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                {isTutorSession ? 'Session Ready!' : 'Start Video Session'}
-              </h2>
-              <p className="text-gray-600">
-                {isTutorSession 
-                  ? 'Copy the link below and share it with your student. They will join automatically.'
-                  : `Connect with ${tutor.name} for personalized learning`}
-              </p>
-            </div>
-            
-            <div className="space-y-6">
-              {/* Shareable Link (for tutors) - SIMPLIFIED */}
-              {isTutorSession && actualSessionId && (
-                <div className="p-6 bg-gradient-to-br from-primary-50 to-primary-100 border-2 border-primary-300 rounded-2xl shadow-lg">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
-                      <ClipboardDocumentIcon className="h-6 w-6 text-white" />
+          <div className="max-w-3xl mx-auto">
+            {/* Tutor Waiting Room (Google Meet style) */}
+            {isTutorSession ? (
+              <div className="space-y-6">
+                {/* Video Preview */}
+                <div className="card overflow-hidden">
+                  <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden relative">
+                    {localStreamRef.current ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <VideoCameraSlashIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-400">Camera off</p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            if (!localStreamRef.current) {
+                              const stream = await getLocalStream(!isVideoOff, !isMuted);
+                            } else {
+                              const videoTrack = localStreamRef.current.getVideoTracks()[0];
+                              if (videoTrack) {
+                                videoTrack.enabled = !videoTrack.enabled;
+                                setIsVideoOff(!videoTrack.enabled);
+                              }
+                            }
+                          }}
+                          className={`p-3 rounded-full ${isVideoOff ? 'bg-red-600' : 'bg-gray-700'} text-white hover:opacity-80 transition-all`}
+                        >
+                          {isVideoOff ? <VideoCameraSlashIcon className="h-5 w-5" /> : <VideoCameraIcon className="h-5 w-5" />}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!localStreamRef.current) {
+                              const stream = await getLocalStream(!isVideoOff, !isMuted);
+                            } else {
+                              const audioTrack = localStreamRef.current.getAudioTracks()[0];
+                              if (audioTrack) {
+                                audioTrack.enabled = !audioTrack.enabled;
+                                setIsMuted(!audioTrack.enabled);
+                              }
+                            }
+                          }}
+                          className={`p-3 rounded-full ${isMuted ? 'bg-red-600' : 'bg-gray-700'} text-white hover:opacity-80 transition-all`}
+                        >
+                          {isMuted ? <MicrophoneIcon className="h-5 w-5" /> : <MicrophoneIcon className="h-5 w-5" />}
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-primary-900">Share This Link</h3>
-                      <p className="text-sm text-primary-700">Copy and send to your student</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/tutoring/session/${actualSessionId}`}
-                      readOnly
-                      className="flex-1 px-4 py-3 border-2 border-primary-300 rounded-xl bg-white text-gray-900 font-mono text-sm font-semibold"
-                    />
-                    <button
-                      onClick={() => {
-                        const link = `${window.location.origin}/tutoring/session/${actualSessionId}`;
-                        navigator.clipboard.writeText(link).then(() => {
-                          addToast({ title: 'Link Copied!', description: 'Share this link with your student', type: 'success' });
-                        });
-                      }}
-                      className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-bold shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2"
-                    >
-                      <ClipboardDocumentIcon className="h-5 w-5" />
-                      Copy
-                    </button>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-primary-200">
-                    <p className="text-sm text-primary-800 font-medium">
-                      ✅ Student clicks link → Auto-joins → Video call starts automatically
-                    </p>
                   </div>
                 </div>
-              )}
 
-              {/* Status for tutors */}
-              {isTutorSession && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                    <p className="text-sm text-blue-900 font-medium">
-                      Waiting for student to join... Your Peer ID: <span className="font-mono text-xs">{myId || 'Loading...'}</span>
-                    </p>
+                {/* Share Link Section */}
+                {actualSessionId && (
+                  <div className="card p-6 bg-gradient-to-br from-primary-50 to-primary-100 border-2 border-primary-300">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
+                        <ClipboardDocumentIcon className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-primary-900">Share Meeting Link</h3>
+                        <p className="text-sm text-primary-700">Copy and send to your student</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/tutoring/session/${actualSessionId}`}
+                        readOnly
+                        className="flex-1 px-4 py-3 border-2 border-primary-300 rounded-xl bg-white text-gray-900 font-mono text-sm font-semibold"
+                      />
+                      <button
+                        onClick={() => {
+                          const link = `${window.location.origin}/tutoring/session/${actualSessionId}`;
+                          navigator.clipboard.writeText(link).then(() => {
+                            addToast({ title: 'Link Copied!', description: 'Share this link with your student', type: 'success' });
+                          });
+                        }}
+                        className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-bold shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2"
+                      >
+                        <ClipboardDocumentIcon className="h-5 w-5" />
+                        Copy Link
+                      </button>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-primary-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <p className="text-sm text-primary-800 font-medium">
+                          Waiting for student to join... When they click the link, they'll join automatically.
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                )}
+              </div>
+            ) : (
+              /* Student View */
+              <div className="card">
+                <div className="text-center mb-8">
+                  <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
+                    <VideoCameraIcon className="h-10 w-10 text-white" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Join Session</h2>
+                  <p className="text-gray-600">
+                    Connecting to {tutor.name}...
+                  </p>
                 </div>
-              )}
 
               {/* Your Peer ID (for students) */}
               {!isTutorSession && (
@@ -805,7 +887,8 @@ export default function TutoringSessionPage() {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
