@@ -14,7 +14,7 @@ const inputVariants = cva(
         success: 'border-green-500 focus:border-green-500 focus:ring-green-500',
       },
       inputSize: {
-        sm: 'h-9 px-3 text-sm',
+        sm: 'h-11 px-3 text-sm', // Minimum 44px height for touch targets
         md: 'h-11 px-4 text-base',
         lg: 'h-12 px-5 text-lg',
       },

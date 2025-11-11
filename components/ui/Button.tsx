@@ -18,11 +18,11 @@ const buttonVariants = cva(
         success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-md hover:shadow-lg',
       },
       size: {
-        sm: 'h-9 px-3 text-sm',
-        md: 'h-11 px-5 text-base',
-        lg: 'h-12 px-6 text-lg',
-        xl: 'h-14 px-8 text-xl',
-        icon: 'h-10 w-10',
+        sm: 'h-11 px-3 text-sm min-w-[44px]', // Minimum 44x44px for touch targets
+        md: 'h-11 px-5 text-base min-w-[44px]',
+        lg: 'h-12 px-6 text-lg min-w-[44px]',
+        xl: 'h-14 px-8 text-xl min-w-[44px]',
+        icon: 'h-11 w-11 min-w-[44px] min-h-[44px]', // Ensure icon buttons are at least 44x44px
       },
     },
     defaultVariants: {

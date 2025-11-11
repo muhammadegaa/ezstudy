@@ -2,10 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Video, Sparkles, BookOpen, Zap, Globe } from 'lucide-react';
+import { Video, Sparkles, BookOpen, Zap, Globe, Loader2, User, LogOut } from 'lucide-react';
 import LanguageToggle from '@/components/LanguageToggle';
 import dynamic from 'next/dynamic';
 import SessionHistory from '@/components/SessionHistory';
+import { useAuth } from '@/hooks/useAuth';
+import { logOut } from '@/lib/firebase/auth';
+import AuthModal from '@/components/Auth/AuthModal';
+import Button from '@/components/ui/Button';
+import Avatar from '@/components/ui/Avatar';
+import type { Language, Session, Translation } from '@/types';
 
 // Lazy load LiveLearningAssistant (heavy component)
 const LiveLearningAssistant = dynamic(() => import('@/components/LiveLearningAssistant'), {
@@ -18,13 +24,23 @@ const LiveLearningAssistant = dynamic(() => import('@/components/LiveLearningAss
   ),
   ssr: false,
 });
-import type { Language, Session, Translation } from '@/types';
 
 export default function Home() {
+  const { user, loading: authLoading } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [targetLang, setTargetLang] = useState<Language>('zh');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
+
+  const handleSignOut = async () => {
+    try {
+      await logOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
 
   useEffect(() => {
     const savedSessions = localStorage.getItem('ezstudy_sessions');
@@ -79,7 +95,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <nav className="flex items-center gap-4">
+            <nav className="flex items-center gap-3">
               <Link
                 href="/tutoring"
                 className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
@@ -87,6 +103,52 @@ export default function Home() {
                 <Video className="h-4 w-4" />
                 Find Tutors
               </Link>
+              {user ? (
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/tutoring"
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all font-semibold text-sm"
+                  >
+                    <Avatar
+                      src={user.photoURL || undefined}
+                      name={user.displayName || user.email || 'User'}
+                      size="sm"
+                    />
+                    <span className="hidden sm:inline">{user.displayName || user.email?.split('@')[0]}</span>
+                  </Link>
+                  <Button
+                    onClick={handleSignOut}
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={<LogOut className="h-4 w-4" />}
+                  >
+                    <span className="hidden sm:inline">Sign Out</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setShowAuthModal(true);
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Sign In
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setShowAuthModal(true);
+                    }}
+                    variant="primary"
+                    size="sm"
+                  >
+                    Sign Up
+                  </Button>
+                </div>
+              )}
             </nav>
           </div>
         </div>
@@ -150,6 +212,13 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode={authMode}
+      />
     </main>
   );
 }

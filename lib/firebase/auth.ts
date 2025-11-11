@@ -1,9 +1,11 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   sendPasswordResetEmail,
   updateProfile,
+  GoogleAuthProvider,
   User,
   UserCredential,
 } from 'firebase/auth';
@@ -67,6 +69,15 @@ export function userToAuthUser(user: User): AuthUser {
     displayName: user.displayName,
     photoURL: user.photoURL,
   };
+}
+
+// Sign in with Google
+export async function signInWithGoogle(): Promise<UserCredential> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  });
+  return signInWithPopup(auth, provider);
 }
 
 // Get current user
