@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 
 // AI-powered note enhancement with professional formatting
 // Creates structured, well-formatted notes suitable for academic use

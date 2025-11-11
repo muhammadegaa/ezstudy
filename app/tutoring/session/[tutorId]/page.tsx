@@ -796,11 +796,50 @@ export default function TutoringSessionPage() {
                   </button>
                 </div>
 
-                {/* Connection Status */}
+                {/* Connection Status & Quality */}
                 {connectionStatus === 'connected' && (
-                  <div className="mt-4 flex items-center justify-center gap-2 text-sm text-green-600">
-                    <CheckCircleIcon className="h-4 w-4" />
-                    <span className="font-medium">Connected</span>
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <CheckCircleIcon className="h-4 w-4" />
+                      <span className="font-medium">Connected</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500 font-medium">Quality:</span>
+                      <div className="flex items-center gap-1">
+                        {connectionQuality === 'excellent' && (
+                          <>
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-xs text-green-600 font-medium">Excellent</span>
+                          </>
+                        )}
+                        {connectionQuality === 'good' && (
+                          <>
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                            <span className="text-xs text-green-600 font-medium">Good</span>
+                          </>
+                        )}
+                        {connectionQuality === 'fair' && (
+                          <>
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                            <span className="text-xs text-yellow-600 font-medium">Fair</span>
+                          </>
+                        )}
+                        {connectionQuality === 'poor' && (
+                          <>
+                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                            <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                            <span className="text-xs text-red-600 font-medium">Poor</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

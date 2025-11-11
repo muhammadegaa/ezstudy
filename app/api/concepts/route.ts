@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 import axios from 'axios';
 
 // AI-powered concept extraction using OpenRouter
@@ -181,6 +182,24 @@ function intelligentExtraction(transcript: string): Array<{
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const limitResult = rateLimit(clientId, { windowMs: 60000, maxRequests: 40 }); // 40 requests per minute
+  
+  if (!limitResult.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again later.' },
+      { 
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil((limitResult.resetTime - Date.now()) / 1000)),
+          'X-RateLimit-Limit': '40',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(limitResult.resetTime),
+        },
+      }
+    );
+  }
   try {
     const body = await request.json();
     const { transcript } = body;
