@@ -4,6 +4,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { userToAuthUser, AuthUser } from '@/lib/firebase/auth';
+import { setUserContext, clearUserContext } from '@/lib/sentry';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -19,9 +20,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
       if (firebaseUser) {
-        setUser(userToAuthUser(firebaseUser));
+        const authUser = userToAuthUser(firebaseUser);
+        setUser(authUser);
+        // Set Sentry user context for error tracking
+        setUserContext({
+          id: authUser.uid,
+          email: authUser.email || undefined,
+          name: authUser.displayName || undefined,
+        });
       } else {
         setUser(null);
+        clearUserContext();
       }
       setLoading(false);
     });

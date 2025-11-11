@@ -170,6 +170,13 @@ export async function createSession(sessionData: Omit<Session, 'id' | 'createdAt
 
     return newSessionRef.id;
   } catch (error: any) {
+    // Log to Sentry
+    const { captureException } = await import('@/lib/sentry');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      operation: 'createSession',
+      sessionData: { ...sessionData, studentId: sessionData.studentId ? '[REDACTED]' : '', tutorId: sessionData.tutorId ? '[REDACTED]' : '' },
+    });
+
     // Provide more helpful error messages
     if (error.code === 'unavailable' || error.message?.includes('offline')) {
       throw new Error('Unable to create session. Please check your internet connection and try again.');

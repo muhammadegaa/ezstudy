@@ -752,11 +752,11 @@ export default function TutoringSessionPage() {
             </div>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
             {/* Video Section */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 md:space-y-6">
               <div className="card overflow-hidden">
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
                   {/* Local Video */}
                   <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
                     {localStreamRef.current && !isVideoOff ? (

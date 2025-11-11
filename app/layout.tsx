@@ -3,6 +3,7 @@ import './globals.css'
 import { AuthProvider } from '@/hooks/useAuth'
 import { ToastProvider } from '@/components/ui/Toast'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import SentryProvider from '@/components/SentryProvider'
 
 export const metadata: Metadata = {
   title: 'ezstudy - Academic Translation Companion',
@@ -27,15 +28,17 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <ErrorBoundary>
-          <AuthProvider>
-            <ToastProvider>
-              <div id="main-content">
-                {children}
-              </div>
-            </ToastProvider>
-          </AuthProvider>
-        </ErrorBoundary>
+        <SentryProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <ToastProvider>
+                <div id="main-content">
+                  {children}
+                </div>
+              </ToastProvider>
+            </AuthProvider>
+          </ErrorBoundary>
+        </SentryProvider>
       </body>
     </html>
   )

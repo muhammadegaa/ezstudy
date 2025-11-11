@@ -3,6 +3,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import Button from './ui/Button';
+import { captureException } from '@/lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -26,7 +27,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // Here you could log to an error reporting service like Sentry
+    // Log to Sentry
+    captureException(error, {
+      componentStack: errorInfo.componentStack,
+      errorBoundary: true,
+    });
   }
 
   private handleReset = () => {
