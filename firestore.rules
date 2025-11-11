@@ -17,6 +17,17 @@ service cloud.firestore {
       );
     }
 
+    // Users collection (user profiles)
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Users can create/update their own profile
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
     // Tutors collection
     match /tutors/{tutorId} {
       // Anyone can read tutors (for browsing)
@@ -33,12 +44,19 @@ service cloud.firestore {
       // Only tutor or student can read their sessions
       allow read: if isAuthenticated() && (
         request.auth.uid == resource.data.tutorId ||
-        request.auth.uid == resource.data.studentId
+        request.auth.uid == resource.data.studentId ||
+        // Allow reading pending sessions created by tutor (before student joins)
+        (resource.data.tutorId == request.auth.uid && resource.data.status == 'pending')
       );
       
-      // Students can create sessions
+      // Students can create sessions (with studentId set)
       allow create: if isAuthenticated() && 
         request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      
+      // Tutors can create sessions (with tutorId set, studentId can be empty initially)
+      allow create: if isAuthenticated() && 
+        request.resource.data.tutorId == request.auth.uid &&
         request.resource.data.status == 'pending';
       
       // Tutor or student can update their sessions

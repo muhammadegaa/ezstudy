@@ -158,16 +158,27 @@ export async function getTutors(filters?: {
 
 // Create a session
 export async function createSession(sessionData: Omit<Session, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-  const sessionsRef = collection(db, SESSIONS_COLLECTION);
-  const newSessionRef = doc(sessionsRef);
+  try {
+    const sessionsRef = collection(db, SESSIONS_COLLECTION);
+    const newSessionRef = doc(sessionsRef);
 
-  await setDoc(newSessionRef, {
-    ...sessionData,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+    await setDoc(newSessionRef, {
+      ...sessionData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
 
-  return newSessionRef.id;
+    return newSessionRef.id;
+  } catch (error: any) {
+    // Provide more helpful error messages
+    if (error.code === 'unavailable' || error.message?.includes('offline')) {
+      throw new Error('Unable to create session. Please check your internet connection and try again.');
+    }
+    if (error.code === 'permission-denied') {
+      throw new Error('Permission denied. Please make sure you are signed in and have the correct permissions.');
+    }
+    throw error;
+  }
 }
 
 // Get session by ID
