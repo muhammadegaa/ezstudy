@@ -806,7 +806,7 @@ export default function TutoringSessionPage() {
       audioTracks.forEach(track => {
         track.enabled = !track.enabled;
       });
-      const newMutedState = !audioTracks[0]?.enabled ?? true;
+      const newMutedState = audioTracks[0] ? !audioTracks[0].enabled : true;
       setIsMuted(newMutedState);
       console.log('🎤 Toggle mute:', newMutedState);
     } else {
@@ -825,7 +825,7 @@ export default function TutoringSessionPage() {
       videoTracks.forEach(track => {
         track.enabled = !track.enabled;
       });
-      const newVideoOffState = !videoTracks[0]?.enabled ?? true;
+      const newVideoOffState = videoTracks[0] ? !videoTracks[0].enabled : true;
       setIsVideoOff(newVideoOffState);
       console.log('🎥 Toggle video:', newVideoOffState);
     } else {
