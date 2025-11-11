@@ -96,14 +96,19 @@ export default function Home() {
               </div>
             </div>
             <nav className="flex items-center gap-3">
-              <Link
-                href="/tutoring"
-                className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
-              >
-                <Video className="h-4 w-4" />
-                Find Tutors
-              </Link>
-              {user ? (
+              {/* Mobile Navigation */}
+              <MobileNav />
+              
+              {/* Desktop Navigation */}
+              <div className="hidden lg:flex items-center gap-3">
+                <Link
+                  href="/tutoring"
+                  className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
+                >
+                  <Video className="h-4 w-4" />
+                  Find Tutors
+                </Link>
+                {user ? (
                 <div className="flex items-center gap-3">
                   <Link
                     href="/tutoring"
@@ -148,7 +153,8 @@ export default function Home() {
                     Sign Up
                   </Button>
                 </div>
-              )}
+                )}
+              </div>
             </nav>
           </div>
         </div>

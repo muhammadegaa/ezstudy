@@ -602,6 +602,7 @@ export default function TutoringSessionPage() {
       </header>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
+        <Breadcrumbs />
         {!isInCall ? (
           <div className="max-w-2xl mx-auto card">
             <div className="text-center mb-8">

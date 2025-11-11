@@ -566,25 +566,29 @@ export default function TutoringPage() {
                 <p className="text-xs text-gray-500 font-medium">Browse and book tutoring sessions</p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setUserRole(null)}
-                className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm"
-              >
-                Switch Role
-              </button>
-              <Link
-                href="/"
-                className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm"
-              >
-                Back to Home
-              </Link>
+            <div className="flex items-center gap-3">
+              <MobileNav />
+              <div className="hidden lg:flex gap-3">
+                <button
+                  onClick={() => setUserRole(null)}
+                  className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm min-h-[44px]"
+                >
+                  Switch Role
+                </button>
+                <Link
+                  href="/"
+                  className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm min-h-[44px] flex items-center"
+                >
+                  Back to Home
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
+        <Breadcrumbs />
         {/* Student Tabs */}
         <div className="flex gap-4 mb-8 border-b border-gray-200">
           <button
