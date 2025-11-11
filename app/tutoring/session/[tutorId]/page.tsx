@@ -159,12 +159,7 @@ export default function TutoringSessionPage() {
             // For students joining via link: auto-connect if tutor's peerId is available
             if (!isTutorSession && firestoreSession.peerId && user.uid !== firestoreSession.tutorId) {
               setRemotePeerId(firestoreSession.peerId);
-              // Auto-join after a short delay to ensure PeerJS is initialized
-              setTimeout(() => {
-                if (peerRef.current && !isInCall) {
-                  startCall().catch(console.error);
-                }
-              }, 1000);
+              // Auto-join will happen in peer.on('open') after PeerJS initializes
             }
           } else {
             addToast({ title: 'Error', description: 'Session not found', type: 'error' });
@@ -206,6 +201,7 @@ export default function TutoringSessionPage() {
     };
 
     loadSessionData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, actualSessionId, isTutorSession, tutorId, router, addToast]);
 
   // Initialize PeerJS on mount
@@ -378,6 +374,7 @@ export default function TutoringSessionPage() {
     return () => {
       cleanup();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, isVideoOff, isMuted, actualSessionId, session, cleanup]);
 
   const handleDataConnection = (conn: any) => {
@@ -442,7 +439,7 @@ export default function TutoringSessionPage() {
     }
   };
 
-  const startCallWithStream = async (stream: MediaStream) => {
+  const startCallWithStream = useCallback(async (stream: MediaStream) => {
     if (!remotePeerId.trim() && !isTutorSession) {
       return;
     }
@@ -532,9 +529,9 @@ export default function TutoringSessionPage() {
     } finally {
       setIsJoining(false);
     }
-  };
+  }, [remotePeerId, isTutorSession, addToast, actualSessionId]);
 
-  const startCall = async () => {
+  const startCall = useCallback(async () => {
     if (!remotePeerId.trim()) {
       addToast({ title: 'Error', description: 'Please enter the other person\'s Peer ID', type: 'error' });
       return;
@@ -546,7 +543,7 @@ export default function TutoringSessionPage() {
     }
 
     await startCallWithStream(localStreamRef.current);
-  };
+  }, [remotePeerId, addToast, startCallWithStream]);
 
   const getLocalStream = async (video: boolean, audio: boolean) => {
     try {
@@ -797,7 +794,7 @@ export default function TutoringSessionPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                         <p className="text-sm text-primary-800 font-medium">
-                          Waiting for student to join... When they click the link, they'll join automatically.
+                          Waiting for student to join... When they click the link, they&apos;ll join automatically.
                         </p>
                       </div>
                     </div>
