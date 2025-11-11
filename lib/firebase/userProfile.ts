@@ -42,16 +42,25 @@ export async function createOrUpdateUserProfile(
 
 // Get user profile
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  const userRef = doc(db, USERS_COLLECTION, userId);
-  const userSnap = await getDoc(userRef);
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    const userSnap = await getDoc(userRef);
 
-  if (!userSnap.exists()) {
-    return null;
+    if (!userSnap.exists()) {
+      return null;
+    }
+
+    return {
+      userId: userSnap.id,
+      ...userSnap.data(),
+    } as UserProfile;
+  } catch (error: any) {
+    // If offline error, return null instead of throwing (profile is optional)
+    if (error.code === 'unavailable' || error.message?.includes('offline')) {
+      console.warn('User profile unavailable (offline):', error);
+      return null;
+    }
+    throw error;
   }
-
-  return {
-    userId: userSnap.id,
-    ...userSnap.data(),
-  } as UserProfile;
 }
 

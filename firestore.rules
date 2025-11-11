@@ -41,13 +41,11 @@ service cloud.firestore {
 
     // Sessions collection
     match /sessions/{sessionId} {
-      // Only tutor or student can read their sessions
-      allow read: if isAuthenticated() && (
-        request.auth.uid == resource.data.tutorId ||
-        request.auth.uid == resource.data.studentId ||
-        // Allow reading pending sessions created by tutor (before student joins)
-        (resource.data.tutorId == request.auth.uid && resource.data.status == 'pending')
-      );
+      // Allow reading sessions for:
+      // 1. Tutor of the session
+      // 2. Student of the session
+      // 3. Any authenticated user (for shareable links - students need to read before joining)
+      allow read: if isAuthenticated();
       
       // Students can create sessions (with studentId set)
       allow create: if isAuthenticated() && 
@@ -59,8 +57,22 @@ service cloud.firestore {
         request.resource.data.tutorId == request.auth.uid &&
         request.resource.data.status == 'pending';
       
-      // Tutor or student can update their sessions
-      allow update: if isTutorOrStudent(resource);
+      // Update rules:
+      // 1. Tutor can update their own sessions
+      // 2. Student can update sessions where they are the student
+      // 3. Any authenticated user can update studentId/studentName/studentEmail when joining (for shareable links)
+      // 4. Tutor can update peerId
+      allow update: if isAuthenticated() && (
+        // Tutor updating their own session
+        (request.auth.uid == resource.data.tutorId) ||
+        // Student updating their own session
+        (request.auth.uid == resource.data.studentId) ||
+        // Student joining via link - can update studentId, studentName, studentEmail, status, peerId
+        (resource.data.status == 'pending' && 
+         resource.data.studentId == '' &&
+         request.resource.data.studentId == request.auth.uid &&
+         request.resource.data.tutorId == resource.data.tutorId)
+      );
       
       // Tutor or student can delete their sessions
       allow delete: if isTutorOrStudent(resource);

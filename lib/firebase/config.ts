@@ -1,6 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, initializeFirestore, persistentLocalCache, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { getFirestore, Firestore, enableNetwork, disableNetwork } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCUoqq9KbpoaT3M2kAgzMytXgRhW3Hh_Z4",
@@ -21,23 +21,15 @@ if (getApps().length === 0) {
 
 // Initialize Firebase services
 export const auth: Auth = getAuth(app);
+export const db: Firestore = getFirestore(app);
 
-// Initialize Firestore with new persistence API (only in browser, not SSR)
-let db: Firestore;
+// Ensure Firestore is online (disable offline persistence for now to avoid blocking writes)
 if (typeof window !== 'undefined') {
-  try {
-    db = initializeFirestore(app, {
-      localCache: persistentLocalCache({ cacheSizeBytes: CACHE_SIZE_UNLIMITED }),
-    });
-  } catch (error) {
-    // If persistence fails, fall back to regular Firestore
-    console.warn('Failed to initialize Firestore persistence, using default:', error);
-    db = getFirestore(app);
-  }
-} else {
-  db = getFirestore(app);
+  // Force online mode - disable offline persistence that blocks writes
+  enableNetwork(db).catch((err) => {
+    console.warn('Failed to enable network:', err);
+  });
 }
 
-export { db };
 export default app;
 
