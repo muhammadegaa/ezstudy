@@ -2,10 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, User, GraduationCap, Star, Video, ArrowRight, Sparkles, Globe, Calendar, Clock, Users as UsersIcon, Settings, Plus } from 'lucide-react';
+import { Search, User, GraduationCap, Star, Video, ArrowRight, Sparkles, Globe, Calendar, Clock, Users as UsersIcon, Settings, Plus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
+import { getTutors, getTutorByUserId, createOrUpdateTutor, type Tutor as FirestoreTutor } from '@/lib/firebase/firestore';
+import { getUserSessions, createSession, updateSession, type Session as FirestoreSession } from '@/lib/firebase/firestore';
+import { getUserProfile, createOrUpdateUserProfile } from '@/lib/firebase/userProfile';
+import { useToast } from '@/components/ui/Toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import EmptyState from '@/components/ui/EmptyState';
 
-interface Tutor {
+// UI-friendly tutor type (without Firestore Timestamps)
+interface UITutor {
   id: string;
   name: string;
   subjects: string[];
@@ -18,231 +26,42 @@ interface Tutor {
   avatar?: string;
 }
 
-interface Session {
+// UI-friendly session type
+interface UISession {
   id: string;
   studentName: string;
+  studentEmail: string;
   tutorId: string;
   tutorName: string;
+  tutorEmail: string;
   subject: string;
-  status: 'pending' | 'active' | 'completed';
+  status: 'pending' | 'active' | 'completed' | 'cancelled';
   scheduledTime?: Date;
   peerId?: string;
 }
 
-const MOCK_TUTORS: Tutor[] = [
-  {
-    id: '1',
-    name: 'Dr. Sarah Chen',
-    subjects: ['Mathematics', 'Physics', 'Quantum Computing'],
-    languages: ['English', 'Mandarin'],
-    rating: 4.9,
-    studentsCount: 127,
-    pricePerHour: 25,
-    bio: 'PhD in Quantum Physics with 10+ years teaching experience. Specializes in helping Chinese students understand complex physics concepts.',
-    available: true,
-  },
-  {
-    id: '2',
-    name: 'Prof. Ahmad Wijaya',
-    subjects: ['Chemistry', 'Biology', 'Organic Chemistry'],
-    languages: ['English', 'Bahasa Indonesia'],
-    rating: 4.8,
-    studentsCount: 89,
-    pricePerHour: 20,
-    bio: 'Chemistry professor with expertise in organic chemistry. Fluent in English and Bahasa Indonesia.',
-    available: true,
-  },
-  {
-    id: '3',
-    name: 'Dr. Li Wei',
-    subjects: ['Mathematics', 'Statistics', 'Calculus'],
-    languages: ['English', 'Mandarin'],
-    rating: 5.0,
-    studentsCount: 203,
-    pricePerHour: 30,
-    bio: 'Mathematics tutor specializing in calculus and statistics. Helps Chinese students excel in UK university courses.',
-    available: true,
-  },
-  {
-    id: '4',
-    name: 'Dr. Emily Rodriguez',
-    subjects: ['Computer Science', 'Data Structures', 'Algorithms'],
-    languages: ['English', 'Spanish'],
-    rating: 4.9,
-    studentsCount: 156,
-    pricePerHour: 35,
-    bio: 'Software engineer and university lecturer. Expert in computer science fundamentals and competitive programming.',
-    available: true,
-  },
-  {
-    id: '5',
-    name: 'Prof. Budi Santoso',
-    subjects: ['Biology', 'Genetics', 'Molecular Biology'],
-    languages: ['English', 'Bahasa Indonesia'],
-    rating: 4.7,
-    studentsCount: 94,
-    pricePerHour: 22,
-    bio: 'Dedicated biology tutor with PhD in Genetics. Helps Indonesian students master complex biological concepts.',
-    available: true,
-  },
-  {
-    id: '6',
-    name: 'Dr. Zhang Ming',
-    subjects: ['Physics', 'Thermodynamics', 'Electromagnetism'],
-    languages: ['English', 'Mandarin'],
-    rating: 4.8,
-    studentsCount: 112,
-    pricePerHour: 28,
-    bio: 'Physics professor specializing in thermodynamics and electromagnetism. Makes complex physics accessible.',
-    available: true,
-  },
-  {
-    id: '7',
-    name: 'Ms. Siti Nurhaliza',
-    subjects: ['Chemistry', 'Biochemistry', 'Analytical Chemistry'],
-    languages: ['English', 'Bahasa Indonesia'],
-    rating: 4.9,
-    studentsCount: 78,
-    pricePerHour: 24,
-    bio: 'Chemistry tutor with expertise in biochemistry and analytical chemistry. Patient and thorough teaching style.',
-    available: true,
-  },
-  {
-    id: '8',
-    name: 'Dr. James Wilson',
-    subjects: ['Mathematics', 'Linear Algebra', 'Differential Equations'],
-    languages: ['English'],
-    rating: 4.9,
-    studentsCount: 189,
-    pricePerHour: 32,
-    bio: 'Mathematics professor with 15+ years experience. Specializes in linear algebra and differential equations.',
-    available: true,
-  },
-  {
-    id: '9',
-    name: 'Prof. Chen Xiaoli',
-    subjects: ['Computer Science', 'Machine Learning', 'Python'],
-    languages: ['English', 'Mandarin'],
-    rating: 5.0,
-    studentsCount: 245,
-    pricePerHour: 40,
-    bio: 'AI researcher and ML expert. Helps students understand machine learning concepts and Python programming.',
-    available: true,
-  },
-  {
-    id: '10',
-    name: 'Dr. Rina Kartika',
-    subjects: ['Biology', 'Cell Biology', 'Microbiology'],
-    languages: ['English', 'Bahasa Indonesia'],
-    rating: 4.8,
-    studentsCount: 67,
-    pricePerHour: 21,
-    bio: 'Cell biology expert with PhD in Microbiology. Makes complex biological processes easy to understand.',
-    available: true,
-  },
-  {
-    id: '11',
-    name: 'Dr. Michael Brown',
-    subjects: ['Physics', 'Mechanics', 'Optics'],
-    languages: ['English'],
-    rating: 4.7,
-    studentsCount: 134,
-    pricePerHour: 29,
-    bio: 'Physics tutor specializing in mechanics and optics. Clear explanations and practical examples.',
-    available: true,
-  },
-  {
-    id: '12',
-    name: 'Prof. Wang Fang',
-    subjects: ['Mathematics', 'Number Theory', 'Abstract Algebra'],
-    languages: ['English', 'Mandarin'],
-    rating: 4.9,
-    studentsCount: 98,
-    pricePerHour: 33,
-    bio: 'Mathematics professor with expertise in number theory and abstract algebra. Helps students master advanced concepts.',
-    available: true,
-  },
-  {
-    id: '13',
-    name: 'Dr. Andi Pratama',
-    subjects: ['Chemistry', 'Physical Chemistry', 'Inorganic Chemistry'],
-    languages: ['English', 'Bahasa Indonesia'],
-    rating: 4.8,
-    studentsCount: 76,
-    pricePerHour: 23,
-    bio: 'Chemistry tutor covering physical and inorganic chemistry. Patient teaching approach for complex topics.',
-    available: true,
-  },
-  {
-    id: '14',
-    name: 'Dr. Lisa Thompson',
-    subjects: ['Biology', 'Ecology', 'Evolutionary Biology'],
-    languages: ['English'],
-    rating: 4.9,
-    studentsCount: 145,
-    pricePerHour: 27,
-    bio: 'Biology professor specializing in ecology and evolutionary biology. Engaging teaching style with real-world examples.',
-    available: true,
-  },
-  {
-    id: '15',
-    name: 'Prof. Liu Hong',
-    subjects: ['Computer Science', 'Database Systems', 'Software Engineering'],
-    languages: ['English', 'Mandarin'],
-    rating: 4.9,
-    studentsCount: 167,
-    pricePerHour: 36,
-    bio: 'Software engineering expert with industry experience. Teaches database systems and software development best practices.',
-    available: true,
-  },
-  {
-    id: '16',
-    name: 'Dr. Dewi Sari',
-    subjects: ['Mathematics', 'Geometry', 'Trigonometry'],
-    languages: ['English', 'Bahasa Indonesia'],
-    rating: 4.7,
-    studentsCount: 89,
-    pricePerHour: 20,
-    bio: 'Mathematics tutor specializing in geometry and trigonometry. Helps students build strong foundational skills.',
-    available: true,
-  },
-  {
-    id: '17',
-    name: 'Dr. Robert Kim',
-    subjects: ['Physics', 'Quantum Mechanics', 'Atomic Physics'],
-    languages: ['English'],
-    rating: 5.0,
-    studentsCount: 201,
-    pricePerHour: 38,
-    bio: 'Quantum physics expert with research background. Makes quantum mechanics accessible to students.',
-    available: true,
-  },
-  {
-    id: '18',
-    name: 'Prof. Huang Mei',
-    subjects: ['Computer Science', 'Web Development', 'JavaScript'],
-    languages: ['English', 'Mandarin'],
-    rating: 4.8,
-    studentsCount: 178,
-    pricePerHour: 34,
-    bio: 'Full-stack developer and instructor. Teaches modern web development with JavaScript and React.',
-    available: true,
-  },
-];
-
 export default function TutoringPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const { addToast } = useToast();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [userRole, setUserRole] = useState<'tutor' | 'student' | null>(null);
-  const [tutorSessions, setTutorSessions] = useState<Session[]>([]);
+  const [tutors, setTutors] = useState<UITutor[]>([]);
+  const [tutorSessions, setTutorSessions] = useState<UISession[]>([]);
   const [activeTab, setActiveTab] = useState<'sessions' | 'profile'>('sessions');
+  const [loading, setLoading] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  const subjects = Array.from(new Set(MOCK_TUTORS.flatMap(t => t.subjects)));
-  const languages = Array.from(new Set(MOCK_TUTORS.flatMap(t => t.languages)));
+  // Get all unique subjects and languages from tutors
+  const subjects = Array.from(new Set(tutors.flatMap(t => t.subjects)));
+  const languages = Array.from(new Set(tutors.flatMap(t => t.languages)));
 
-  const filteredTutors = MOCK_TUTORS.filter(tutor => {
+  // Filter tutors based on search and filters
+  const filteredTutors = tutors.filter(tutor => {
     const matchesSearch = tutor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          tutor.bio.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          tutor.subjects.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -251,48 +70,200 @@ export default function TutoringPage() {
     return matchesSearch && matchesSubject && matchesLanguage;
   });
 
+  // Load user profile and determine role
   useEffect(() => {
-    const savedRole = localStorage.getItem('ezstudy_user_role');
-    if (savedRole === 'tutor' || savedRole === 'student') {
-      setUserRole(savedRole as 'tutor' | 'student');
-    }
-
-    // Load tutor sessions from localStorage
-    if (savedRole === 'tutor') {
-      const savedSessions = localStorage.getItem('ezstudy_tutor_sessions');
-      if (savedSessions) {
+    if (!authLoading && user) {
+      const loadUserProfile = async () => {
         try {
-          const parsed = JSON.parse(savedSessions);
-          setTutorSessions(parsed.map((s: any) => ({
-            ...s,
-            scheduledTime: s.scheduledTime ? new Date(s.scheduledTime) : undefined,
-          })));
-        } catch (e) {
-          console.error('Failed to load tutor sessions:', e);
+          const profile = await getUserProfile(user.uid);
+          if (profile) {
+            setUserProfile(profile);
+            setUserRole(profile.role);
+          } else {
+            // Create default profile if doesn't exist
+            await createOrUpdateUserProfile(user.uid, {
+              email: user.email || '',
+              displayName: user.displayName || 'User',
+              role: 'student',
+            });
+            setUserRole('student');
+          }
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+          addToast({ title: 'Error', description: 'Failed to load profile', type: 'error' });
+        }
+      };
+      loadUserProfile();
+    }
+  }, [user, authLoading, addToast]);
+
+  // Load tutors from Firestore
+  useEffect(() => {
+    const loadTutors = async () => {
+      if (userRole === 'student') {
+        setLoading(true);
+        try {
+          const firestoreTutors = await getTutors({ available: true });
+          // Convert Firestore tutors to UI format
+          const uiTutors: UITutor[] = firestoreTutors.map(tutor => ({
+            id: tutor.id,
+            name: tutor.name,
+            subjects: tutor.subjects,
+            languages: tutor.languages,
+            rating: tutor.rating,
+            studentsCount: tutor.studentsCount,
+            pricePerHour: tutor.pricePerHour,
+            bio: tutor.bio,
+            available: tutor.available,
+            avatar: tutor.avatar,
+          }));
+          setTutors(uiTutors);
+        } catch (error) {
+          console.error('Error loading tutors:', error);
+          addToast({ title: 'Error', description: 'Failed to load tutors', type: 'error' });
+        } finally {
+          setLoading(false);
         }
       }
-    }
-  }, []);
-
-  const createTutorSession = () => {
-    const newSession: Session = {
-      id: Date.now().toString(),
-      studentName: 'Waiting for student...',
-      tutorId: 'current-tutor',
-      tutorName: 'You',
-      subject: 'General',
-      status: 'pending',
     };
-    const updated = [newSession, ...tutorSessions];
-    setTutorSessions(updated);
-    localStorage.setItem('ezstudy_tutor_sessions', JSON.stringify(updated));
-    router.push(`/tutoring/session/tutor-${newSession.id}`);
+
+    if (userRole === 'student') {
+      loadTutors();
+    }
+  }, [userRole, addToast]);
+
+  // Load tutor sessions from Firestore
+  useEffect(() => {
+    const loadSessions = async () => {
+      if (userRole === 'tutor' && user) {
+        setLoadingSessions(true);
+        try {
+          const firestoreSessions = await getUserSessions(user.uid, 'tutor');
+          // Convert Firestore sessions to UI format
+          const uiSessions: UISession[] = firestoreSessions.map(session => ({
+            id: session.id,
+            studentName: session.studentName,
+            studentEmail: session.studentEmail,
+            tutorId: session.tutorId,
+            tutorName: session.tutorName,
+            tutorEmail: session.tutorEmail,
+            subject: session.subject,
+            status: session.status,
+            scheduledTime: session.scheduledTime?.toDate(),
+            peerId: session.peerId,
+          }));
+          setTutorSessions(uiSessions);
+        } catch (error) {
+          console.error('Error loading sessions:', error);
+          addToast({ title: 'Error', description: 'Failed to load sessions', type: 'error' });
+        } finally {
+          setLoadingSessions(false);
+        }
+      }
+    };
+
+    if (userRole === 'tutor' && user) {
+      loadSessions();
+    }
+  }, [userRole, user, addToast]);
+
+  const handleBookSession = async (tutorId: string) => {
+    if (!user || !userProfile) {
+      addToast({ title: 'Error', description: 'Please sign in to book a session', type: 'error' });
+      return;
+    }
+
+    try {
+      const tutor = tutors.find(t => t.id === tutorId);
+      if (!tutor) {
+        addToast({ title: 'Error', description: 'Tutor not found', type: 'error' });
+        return;
+      }
+
+      // Create session in Firestore
+      const sessionId = await createSession({
+        studentId: user.uid,
+        studentName: user.displayName || userProfile.displayName || 'Student',
+        studentEmail: user.email || userProfile.email,
+        tutorId: tutorId,
+        tutorName: tutor.name,
+        tutorEmail: '', // Will be fetched from tutor profile if needed
+        subject: tutor.subjects[0] || 'General',
+        status: 'pending',
+      });
+
+      addToast({ title: 'Success', description: 'Session booked successfully!', type: 'success' });
+      router.push(`/tutoring/session/${tutorId}?sessionId=${sessionId}`);
+    } catch (error: any) {
+      console.error('Error booking session:', error);
+      addToast({ title: 'Error', description: error.message || 'Failed to book session', type: 'error' });
+    }
+  };
+
+  const createTutorSession = async () => {
+    if (!user) {
+      addToast({ title: 'Error', description: 'Please sign in', type: 'error' });
+      return;
+    }
+
+    try {
+      // Get or create tutor profile
+      let tutorProfile = await getTutorByUserId(user.uid);
+      if (!tutorProfile) {
+        // Create tutor profile
+        await createOrUpdateTutor(user.uid, {
+          userId: user.uid,
+          name: user.displayName || 'Tutor',
+          email: user.email || '',
+          subjects: ['General'],
+          languages: ['English'],
+          rating: 0,
+          studentsCount: 0,
+          pricePerHour: 20,
+          bio: 'New tutor',
+          available: true,
+        });
+        tutorProfile = await getTutorByUserId(user.uid);
+      }
+
+      if (!tutorProfile) {
+        throw new Error('Failed to create tutor profile');
+      }
+
+      // Create session
+      const sessionId = await createSession({
+        studentId: '', // Will be filled when student joins
+        studentName: 'Waiting for student...',
+        studentEmail: '',
+        tutorId: user.uid,
+        tutorName: tutorProfile.name,
+        tutorEmail: tutorProfile.email,
+        subject: 'General',
+        status: 'pending',
+      });
+
+      addToast({ title: 'Success', description: 'Session created!', type: 'success' });
+      router.push(`/tutoring/session/tutor-${sessionId}`);
+    } catch (error: any) {
+      console.error('Error creating session:', error);
+      addToast({ title: 'Error', description: error.message || 'Failed to create session', type: 'error' });
+    }
   };
 
   const joinSessionAsTutor = (sessionId: string) => {
     router.push(`/tutoring/session/tutor-${sessionId}`);
   };
 
+  // Show loading state while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Role selection screen
   if (!userRole) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
@@ -316,9 +287,17 @@ export default function TutoringPage() {
 
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             <div
-              onClick={() => {
-                setUserRole('student');
-                localStorage.setItem('ezstudy_user_role', 'student');
+              onClick={async () => {
+                if (user && userProfile) {
+                  await createOrUpdateUserProfile(user.uid, {
+                    email: user.email || '',
+                    displayName: user.displayName || 'User',
+                    role: 'student',
+                  });
+                  setUserRole('student');
+                } else {
+                  setUserRole('student');
+                }
               }}
               className="card card-hover cursor-pointer group border-2 border-transparent hover:border-primary-300"
             >
@@ -337,9 +316,17 @@ export default function TutoringPage() {
             </div>
 
             <div
-              onClick={() => {
-                setUserRole('tutor');
-                localStorage.setItem('ezstudy_user_role', 'tutor');
+              onClick={async () => {
+                if (user && userProfile) {
+                  await createOrUpdateUserProfile(user.uid, {
+                    email: user.email || '',
+                    displayName: user.displayName || 'User',
+                    role: 'tutor',
+                  });
+                  setUserRole('tutor');
+                } else {
+                  setUserRole('tutor');
+                }
               }}
               className="card card-hover cursor-pointer group border-2 border-transparent hover:border-primary-300"
             >
@@ -362,6 +349,7 @@ export default function TutoringPage() {
     );
   }
 
+  // Tutor Dashboard
   if (userRole === 'tutor') {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
@@ -379,10 +367,7 @@ export default function TutoringPage() {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => {
-                    setUserRole(null);
-                    localStorage.removeItem('ezstudy_user_role');
-                  }}
+                  onClick={() => setUserRole(null)}
                   className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm"
                 >
                   Switch Role
@@ -430,7 +415,7 @@ export default function TutoringPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 mb-2">Start a Session</h2>
-                    <p className="text-gray-600 text-sm">Create a new tutoring session and share your Peer ID with students</p>
+                    <p className="text-gray-600 text-sm">Create a new tutoring session and wait for students to join</p>
                   </div>
                   <button
                     onClick={createTutorSession}
@@ -443,7 +428,12 @@ export default function TutoringPage() {
               </div>
 
               {/* Active Sessions */}
-              {tutorSessions.length > 0 ? (
+              {loadingSessions ? (
+                <div className="card text-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
+                  <p className="text-gray-600">Loading sessions...</p>
+                </div>
+              ) : tutorSessions.length > 0 ? (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold text-gray-900">Your Sessions</h3>
                   {tutorSessions.map((session) => (
@@ -516,7 +506,7 @@ export default function TutoringPage() {
             <div className="card">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                  T
+                  {user?.displayName?.[0]?.toUpperCase() || 'T'}
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Your Tutor Profile</h2>
@@ -524,61 +514,10 @@ export default function TutoringPage() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Your Name</label>
-                    <input
-                      type="text"
-                      defaultValue="Your Name"
-                      className="input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Subjects</label>
-                    <input
-                      type="text"
-                      defaultValue="Mathematics, Physics, Chemistry"
-                      className="input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Languages</label>
-                    <input
-                      type="text"
-                      defaultValue="English, Mandarin"
-                      className="input"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Hourly Rate ($)</label>
-                    <input
-                      type="number"
-                      defaultValue="30"
-                      className="input"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bio</label>
-                    <textarea
-                      rows={4}
-                      defaultValue="Experienced tutor with expertise in multiple subjects..."
-                      className="input resize-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" id="available" defaultChecked className="w-4 h-4 text-primary-600 rounded" />
-                    <label htmlFor="available" className="text-sm font-medium text-gray-700">Available for sessions</label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <button className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-md hover:shadow-lg">
-                  Save Profile
-                </button>
+              <div className="space-y-6">
+                <p className="text-gray-600">
+                  Profile management coming soon. For now, you can create sessions and start teaching!
+                </p>
               </div>
             </div>
           )}
@@ -587,7 +526,7 @@ export default function TutoringPage() {
     );
   }
 
-  // Student view - Browse tutors
+  // Student View - Browse Tutors
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
@@ -595,19 +534,16 @@ export default function TutoringPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Sparkles className="h-6 w-6 text-white" />
+                <GraduationCap className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Find Your Tutor</h1>
-                <p className="text-xs text-gray-500 font-medium">Expert tutors with real-time translation</p>
+                <h1 className="text-xl font-bold text-gray-900">Find Tutors</h1>
+                <p className="text-xs text-gray-500 font-medium">Browse and book tutoring sessions</p>
               </div>
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  setUserRole(null);
-                  localStorage.removeItem('ezstudy_user_role');
-                }}
+                onClick={() => setUserRole(null)}
                 className="px-4 py-2 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold text-sm shadow-sm"
               >
                 Switch Role
@@ -624,22 +560,23 @@ export default function TutoringPage() {
       </header>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
+        {/* Search and Filters */}
         <div className="card mb-8">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search tutors by name, subject, or expertise..."
+                placeholder="Search tutors, subjects..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input pl-12"
+                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
             <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
-              className="input md:w-48"
+              className="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="all">All Subjects</option>
               {subjects.map(subject => (
@@ -649,7 +586,7 @@ export default function TutoringPage() {
             <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="input md:w-48"
+              className="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="all">All Languages</option>
               {languages.map(lang => (
@@ -659,85 +596,76 @@ export default function TutoringPage() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTutors.map(tutor => (
-            <div
-              key={tutor.id}
-              className="card card-hover group"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                    {tutor.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">{tutor.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                      <span className="text-sm font-bold text-gray-700">{tutor.rating}</span>
-                      <span className="text-xs text-gray-500">({tutor.studentsCount} students)</span>
+        {/* Tutors Grid */}
+        {loading ? (
+          <div className="card text-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
+            <p className="text-gray-600">Loading tutors...</p>
+          </div>
+        ) : filteredTutors.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTutors.map((tutor) => (
+              <div key={tutor.id} className="card card-hover">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">
+                      {tutor.name[0]}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">{tutor.name}</h3>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                        <span className="text-sm font-semibold text-gray-700">{tutor.rating}</span>
+                        <span className="text-xs text-gray-500">({tutor.studentsCount} students)</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-                {tutor.available && (
-                  <span className="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                    Available
-                  </span>
-                )}
-              </div>
 
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2 leading-relaxed">{tutor.bio}</p>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{tutor.bio}</p>
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                {tutor.subjects.slice(0, 2).map(subject => (
-                  <span
-                    key={subject}
-                    className="px-3 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded-lg"
-                  >
-                    {subject}
-                  </span>
-                ))}
-                {tutor.subjects.length > 2 && (
-                  <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg">
-                    +{tutor.subjects.length - 2} more
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <div>
-                  <span className="text-3xl font-bold text-gray-900">${tutor.pricePerHour}</span>
-                  <span className="text-gray-600 text-sm ml-1">/hour</span>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {tutor.subjects.slice(0, 3).map(subject => (
+                    <span key={subject} className="px-2 py-1 bg-primary-50 text-primary-700 text-xs font-semibold rounded-lg">
+                      {subject}
+                    </span>
+                  ))}
+                  {tutor.subjects.length > 3 && (
+                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg">
+                      +{tutor.subjects.length - 3}
+                    </span>
+                  )}
                 </div>
-                <Link
-                  href={`/tutoring/session/${tutor.id}`}
-                  className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  <Video className="h-4 w-4" />
-                  Book Session
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
 
-        {filteredTutors.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Search className="h-10 w-10 text-gray-400" />
-            </div>
-            <p className="text-gray-600 text-lg font-medium mb-2">No tutors found</p>
-            <p className="text-gray-500 text-sm mb-6">Try adjusting your search or filters</p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedSubject('all');
-                setSelectedLanguage('all');
-              }}
-              className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-lg"
-            >
-              Clear Filters
-            </button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Globe className="h-4 w-4" />
+                    <span>{tutor.languages.join(', ')}</span>
+                  </div>
+                  <div className="text-lg font-bold text-primary-600">
+                    £{tutor.pricePerHour}/hr
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleBookSession(tutor.id)}
+                  className="w-full mt-4 px-4 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                >
+                  <Video className="h-5 w-5" />
+                  Book Session
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="card text-center py-12">
+            <GraduationCap className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No Tutors Found</h3>
+            <p className="text-gray-600">
+              {searchQuery || selectedSubject !== 'all' || selectedLanguage !== 'all' 
+                ? 'Try adjusting your search or filters'
+                : 'No tutors available at the moment. Check back later!'}
+            </p>
           </div>
         )}
       </div>
