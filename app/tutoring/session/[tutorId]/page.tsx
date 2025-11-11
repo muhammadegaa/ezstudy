@@ -1173,40 +1173,46 @@ export default function TutoringSessionPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
                           {/* Local Video */}
                           <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
-                            {localStreamRef.current ? (
-                              <>
-                                <video
-                                  ref={localVideoRef}
-                                  autoPlay
-                                  muted
-                                  playsInline
-                                  className="w-full h-full object-cover"
-                                  style={{ display: isVideoOff ? 'none' : 'block' }}
-                                  onLoadedMetadata={() => {
+                            {/* Video element - always present when stream exists */}
+                            {localStreamRef.current && (
+                              <video
+                                ref={localVideoRef}
+                                autoPlay
+                                muted
+                                playsInline
+                                className="w-full h-full object-cover absolute inset-0"
+                                style={{ 
+                                  display: isVideoOff ? 'none' : 'block',
+                                  zIndex: isVideoOff ? 0 : 10
+                                }}
+                                onLoadedMetadata={() => {
+                                  console.log('📹 Local video metadata loaded');
+                                  if (!isVideoOff) {
                                     localVideoRef.current?.play().catch(console.error);
-                                  }}
-                                />
-                                {isVideoOff && (
-                                  <div className="w-full h-full flex items-center justify-center absolute inset-0">
-                                    <div className="text-center">
-                                      <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                                      <p className="text-xs text-gray-400">Camera off</p>
-                                    </div>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
+                                  }
+                                }}
+                                onPlay={() => {
+                                  console.log('▶️ Local video playing');
+                                }}
+                              />
+                            )}
+                            
+                            {/* Overlay when camera is off or no stream */}
+                            {(!localStreamRef.current || isVideoOff) && (
+                              <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-900 z-20">
                                 <div className="text-center">
                                   <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                                  <p className="text-xs text-gray-400">Camera not started</p>
+                                  <p className="text-xs text-gray-400">
+                                    {!localStreamRef.current ? 'Camera not started' : 'Camera off'}
+                                  </p>
                                 </div>
                               </div>
                             )}
-                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
-                      You {isMuted && '(Muted)'} {isVideoOff && '(Camera Off)'}
-                    </div>
-                  </div>
+                            
+                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded z-30">
+                              You {isMuted && '(Muted)'} {isVideoOff && '(Camera Off)'}
+                            </div>
+                          </div>
                   {/* Remote Video */}
                   <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
                     {connectionStatus === 'connected' && remoteStreamRef.current ? (
