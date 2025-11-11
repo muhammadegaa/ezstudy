@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 import { signUp, signIn, resetPassword } from '@/lib/firebase/auth';
+import { createOrUpdateUserProfile } from '@/lib/firebase/userProfile';
 import { useAuth } from '@/hooks/useAuth';
 
 interface AuthModalProps {
@@ -45,7 +46,15 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }: A
 
     try {
       if (mode === 'signup') {
-        await signUp(email, password, displayName || undefined);
+        const userCredential = await signUp(email, password, displayName || undefined);
+        // Create user profile in Firestore (default to student role)
+        if (userCredential.user) {
+          await createOrUpdateUserProfile(userCredential.user.uid, {
+            email: userCredential.user.email || email,
+            displayName: displayName || userCredential.user.displayName || 'User',
+            role: 'student', // Default role - can be changed later
+          });
+        }
         onClose();
       } else if (mode === 'signin') {
         await signIn(email, password);
