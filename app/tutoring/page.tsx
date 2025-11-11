@@ -12,6 +12,8 @@ import { useToast } from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { SkeletonTutorCard } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
+import MobileNav from '@/components/Navigation/MobileNav';
+import Breadcrumbs from '@/components/Navigation/Breadcrumbs';
 
 // UI-friendly tutor type (without Firestore Timestamps)
 interface UITutor {

@@ -34,6 +34,8 @@ import { getSession, updateSession, type Session as FirestoreSession } from '@/l
 import { getUserProfile } from '@/lib/firebase/userProfile';
 import { useToast } from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import MobileNav from '@/components/Navigation/MobileNav';
+import Breadcrumbs from '@/components/Navigation/Breadcrumbs';
 import type { Language } from '@/types';
 
 export default function TutoringSessionPage() {
@@ -571,9 +573,11 @@ export default function TutoringSessionPage() {
         <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <MobileNav />
               <button
                 onClick={() => router.push('/tutoring')}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="hidden lg:flex p-2 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] items-center justify-center"
+                aria-label="Back to tutoring"
               >
                 <XMarkIcon className="h-5 w-5 text-gray-600" />
               </button>
@@ -776,7 +780,7 @@ export default function TutoringSessionPage() {
                   </button>
                   <button
                     onClick={toggleVideo}
-                    className={`p-4 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                    className={`p-4 h-11 min-h-[44px] min-w-[44px] rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-110 ${
                       isVideoOff ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                     }`}
                     aria-label={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
@@ -785,7 +789,7 @@ export default function TutoringSessionPage() {
                   </button>
                   <button
                     onClick={leaveCall}
-                    className="p-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-110"
+                    className="p-4 h-11 min-h-[44px] min-w-[44px] rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-110"
                     aria-label="Leave call"
                   >
                     <XMarkIcon className="h-5 w-5" />
