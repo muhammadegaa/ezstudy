@@ -269,7 +269,25 @@ export default function TutoringPage() {
         status: 'pending',
       });
 
-      addToast({ title: 'Success', description: 'Session created!', type: 'success' });
+      // Generate shareable link
+      const shareableLink = `${window.location.origin}/tutoring/session/${sessionId}`;
+      
+      // Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(shareableLink);
+        addToast({ 
+          title: 'Session Created!', 
+          description: 'Shareable link copied to clipboard. Share it with students to join.', 
+          type: 'success' 
+        });
+      } catch (err) {
+        addToast({ 
+          title: 'Session Created!', 
+          description: `Share this link: ${shareableLink}`, 
+          type: 'success' 
+        });
+      }
+      
       router.push(`/tutoring/session/tutor-${sessionId}`);
     } catch (error: any) {
       console.error('Error creating session:', error);

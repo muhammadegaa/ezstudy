@@ -49,8 +49,9 @@ export default function TutoringSessionPage() {
   const sessionId = searchParams?.get('sessionId');
   
   // Check if this is a tutor-created session (starts with "tutor-")
+  // OR if tutorId is actually a sessionId (student joining via link)
   const isTutorSession = tutorId.startsWith('tutor-');
-  const actualSessionId = isTutorSession ? tutorId.replace('tutor-', '') : sessionId;
+  const actualSessionId = isTutorSession ? tutorId.replace('tutor-', '') : (sessionId || tutorId);
   
   const [tutor, setTutor] = useState<{ name: string; subjects: string[]; languages: string[] } | null>(null);
   const [session, setSession] = useState<FirestoreSession | null>(null);
@@ -155,9 +156,15 @@ export default function TutoringSessionPage() {
               }
             }
             
-            // Use peerId from session if available
-            if (firestoreSession.peerId) {
+            // For students joining via link: auto-connect if tutor's peerId is available
+            if (!isTutorSession && firestoreSession.peerId && user.uid !== firestoreSession.tutorId) {
               setRemotePeerId(firestoreSession.peerId);
+              // Auto-join after a short delay to ensure PeerJS is initialized
+              setTimeout(() => {
+                if (peerRef.current && !isInCall) {
+                  startCall().catch(console.error);
+                }
+              }, 1000);
             }
           } else {
             addToast({ title: 'Error', description: 'Session not found', type: 'error' });
@@ -241,8 +248,8 @@ export default function TutoringSessionPage() {
         setMyId(id);
         setIsInitializing(false);
         
-        // Update session with peerId if session exists
-        if (actualSessionId && session && !session.peerId) {
+        // Update session with peerId if session exists (for tutors)
+        if (actualSessionId && session && isTutorSession && !session.peerId) {
           updateSession(actualSessionId, { peerId: id }).catch(console.error);
         }
       });
@@ -676,10 +683,42 @@ export default function TutoringSessionPage() {
             </div>
             
             <div className="space-y-6">
+              {/* Shareable Link (for tutors) */}
+              {isTutorSession && actualSessionId && (
+                <div className="p-4 bg-primary-50 border-2 border-primary-200 rounded-xl">
+                  <label className="block text-sm font-bold text-primary-900 mb-2">
+                    Share this link with students:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/tutoring/session/${actualSessionId}`}
+                      readOnly
+                      className="flex-1 px-4 py-3 border border-primary-300 rounded-xl bg-white text-gray-900 font-mono text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}/tutoring/session/${actualSessionId}`;
+                        navigator.clipboard.writeText(link).then(() => {
+                          addToast({ title: 'Copied!', description: 'Link copied to clipboard', type: 'success' });
+                        });
+                      }}
+                      className="px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-sm"
+                      aria-label="Copy link"
+                    >
+                      <ClipboardDocumentIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-primary-700 mt-2 font-medium">
+                    Students can click this link to join automatically
+                  </p>
+                </div>
+              )}
+
               {/* Your Peer ID */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Your Peer ID {isTutorSession ? '(share this with students)' : `(share this with ${tutor.name})`}:
+                  Your Peer ID {isTutorSession ? '(waiting for student...)' : `(share this with ${tutor.name})`}:
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -700,12 +739,12 @@ export default function TutoringSessionPage() {
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                   {isTutorSession 
-                    ? 'Ask the student for their Peer ID and enter it above'
+                    ? 'Once a student joins via the link above, they will connect automatically'
                     : 'Share your Peer ID with the tutor'}
                 </p>
               </div>
 
-              {/* Enter Peer ID to Connect */}
+              {/* Enter Peer ID to Connect (manual fallback) */}
               {!isTutorSession && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
