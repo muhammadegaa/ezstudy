@@ -51,7 +51,9 @@ export default function TutoringPage() {
   const [userRole, setUserRole] = useState<'tutor' | 'student' | null>(null);
   const [tutors, setTutors] = useState<UITutor[]>([]);
   const [tutorSessions, setTutorSessions] = useState<UISession[]>([]);
+  const [studentSessions, setStudentSessions] = useState<UISession[]>([]);
   const [activeTab, setActiveTab] = useState<'sessions' | 'profile'>('sessions');
+  const [studentActiveTab, setStudentActiveTab] = useState<'browse' | 'my-sessions'>('browse');
   const [loading, setLoading] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -139,7 +141,6 @@ export default function TutoringPage() {
         setLoadingSessions(true);
         try {
           const firestoreSessions = await getUserSessions(user.uid, 'tutor');
-          // Convert Firestore sessions to UI format
           const uiSessions: UISession[] = firestoreSessions.map(session => ({
             id: session.id,
             studentName: session.studentName,
@@ -159,10 +160,33 @@ export default function TutoringPage() {
         } finally {
           setLoadingSessions(false);
         }
+      } else if (userRole === 'student' && user) {
+        setLoadingSessions(true);
+        try {
+          const firestoreSessions = await getUserSessions(user.uid, 'student');
+          const uiSessions: UISession[] = firestoreSessions.map(session => ({
+            id: session.id,
+            studentName: session.studentName,
+            studentEmail: session.studentEmail,
+            tutorId: session.tutorId,
+            tutorName: session.tutorName,
+            tutorEmail: session.tutorEmail,
+            subject: session.subject,
+            status: session.status,
+            scheduledTime: session.scheduledTime?.toDate(),
+            peerId: session.peerId,
+          }));
+          setStudentSessions(uiSessions);
+        } catch (error) {
+          console.error('Error loading student sessions:', error);
+          addToast({ title: 'Error', description: 'Failed to load sessions', type: 'error' });
+        } finally {
+          setLoadingSessions(false);
+        }
       }
     };
 
-    if (userRole === 'tutor' && user) {
+    if ((userRole === 'tutor' || userRole === 'student') && user) {
       loadSessions();
     }
   }, [userRole, user, addToast]);
@@ -560,8 +584,102 @@ export default function TutoringPage() {
       </header>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
-        {/* Search and Filters */}
-        <div className="card mb-8">
+        {/* Student Tabs */}
+        <div className="flex gap-4 mb-8 border-b border-gray-200">
+          <button
+            onClick={() => setStudentActiveTab('browse')}
+            className={`px-6 py-3 font-semibold transition-all border-b-2 ${
+              studentActiveTab === 'browse'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Browse Tutors
+          </button>
+          <button
+            onClick={() => setStudentActiveTab('my-sessions')}
+            className={`px-6 py-3 font-semibold transition-all border-b-2 ${
+              studentActiveTab === 'my-sessions'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            My Sessions ({studentSessions.length})
+          </button>
+        </div>
+
+        {studentActiveTab === 'my-sessions' ? (
+          <div className="space-y-6">
+            {loadingSessions ? (
+              <div className="card text-center py-12">
+                <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
+                <p className="text-gray-600">Loading sessions...</p>
+              </div>
+            ) : studentSessions.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-gray-900">Your Sessions</h3>
+                {studentSessions.map((session) => (
+                  <div key={session.id} className="card card-hover">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                          <Video className="h-6 w-6 text-primary-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-gray-900">Session with {session.tutorName}</h4>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {session.status === 'pending' ? 'Pending' : session.status === 'active' ? 'Active' : 'Completed'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <UsersIcon className="h-4 w-4" />
+                              {session.subject}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        {session.status === 'pending' && (
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full">
+                            Waiting
+                          </span>
+                        )}
+                        {session.status === 'active' && (
+                          <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
+                            Active
+                          </span>
+                        )}
+                        <button
+                          onClick={() => router.push(`/tutoring/session/${session.tutorId}?sessionId=${session.id}`)}
+                          className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 shadow-md hover:shadow-lg"
+                        >
+                          <Video className="h-4 w-4" />
+                          {session.status === 'pending' ? 'Join' : session.status === 'active' ? 'Rejoin' : 'View'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="card text-center py-12">
+                <Video className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No Sessions Yet</h3>
+                <p className="text-gray-600 mb-6">Book your first tutoring session to get started</p>
+                <button
+                  onClick={() => setStudentActiveTab('browse')}
+                  className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl"
+                >
+                  Browse Tutors
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Search and Filters */}
+            <div className="card mb-8">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -667,6 +785,8 @@ export default function TutoringPage() {
                 : 'No tutors available at the moment. Check back later!'}
             </p>
           </div>
+        )}
+          </>
         )}
       </div>
     </main>

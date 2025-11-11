@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { 
   VideoCameraIcon, 
   VideoCameraSlashIcon, 
@@ -16,58 +16,45 @@ import {
 import { Loader2 } from 'lucide-react';
 import LiveLearningAssistant from '@/components/LiveLearningAssistant';
 import MediaPreview from '@/components/WebRTC/MediaPreview';
+import { useAuth } from '@/hooks/useAuth';
+import { getTutor, getTutorByUserId } from '@/lib/firebase/firestore';
+import { getSession, updateSession, type Session as FirestoreSession } from '@/lib/firebase/firestore';
+import { getUserProfile } from '@/lib/firebase/userProfile';
+import { useToast } from '@/components/ui/Toast';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import type { Language } from '@/types';
-
-// Extended tutor data matching the tutors list
-const MOCK_TUTORS: Record<string, { name: string; subjects: string[]; languages: string[] }> = {
-  '1': { name: 'Dr. Sarah Chen', subjects: ['Mathematics', 'Physics', 'Quantum Computing'], languages: ['English', 'Mandarin'] },
-  '2': { name: 'Prof. Ahmad Wijaya', subjects: ['Chemistry', 'Biology', 'Organic Chemistry'], languages: ['English', 'Bahasa Indonesia'] },
-  '3': { name: 'Dr. Li Wei', subjects: ['Mathematics', 'Statistics', 'Calculus'], languages: ['English', 'Mandarin'] },
-  '4': { name: 'Dr. Emily Rodriguez', subjects: ['Computer Science', 'Data Structures', 'Algorithms'], languages: ['English', 'Spanish'] },
-  '5': { name: 'Prof. Budi Santoso', subjects: ['Biology', 'Genetics', 'Molecular Biology'], languages: ['English', 'Bahasa Indonesia'] },
-  '6': { name: 'Dr. Zhang Ming', subjects: ['Physics', 'Thermodynamics', 'Electromagnetism'], languages: ['English', 'Mandarin'] },
-  '7': { name: 'Ms. Siti Nurhaliza', subjects: ['Chemistry', 'Biochemistry', 'Analytical Chemistry'], languages: ['English', 'Bahasa Indonesia'] },
-  '8': { name: 'Dr. James Wilson', subjects: ['Mathematics', 'Linear Algebra', 'Differential Equations'], languages: ['English'] },
-  '9': { name: 'Prof. Chen Xiaoli', subjects: ['Computer Science', 'Machine Learning', 'Python'], languages: ['English', 'Mandarin'] },
-  '10': { name: 'Dr. Rina Kartika', subjects: ['Biology', 'Cell Biology', 'Microbiology'], languages: ['English', 'Bahasa Indonesia'] },
-  '11': { name: 'Dr. Michael Brown', subjects: ['Physics', 'Mechanics', 'Optics'], languages: ['English'] },
-  '12': { name: 'Prof. Wang Fang', subjects: ['Mathematics', 'Number Theory', 'Abstract Algebra'], languages: ['English', 'Mandarin'] },
-  '13': { name: 'Dr. Andi Pratama', subjects: ['Chemistry', 'Physical Chemistry', 'Inorganic Chemistry'], languages: ['English', 'Bahasa Indonesia'] },
-  '14': { name: 'Dr. Lisa Thompson', subjects: ['Biology', 'Ecology', 'Evolutionary Biology'], languages: ['English'] },
-  '15': { name: 'Prof. Liu Hong', subjects: ['Computer Science', 'Database Systems', 'Software Engineering'], languages: ['English', 'Mandarin'] },
-  '16': { name: 'Dr. Dewi Sari', subjects: ['Mathematics', 'Geometry', 'Trigonometry'], languages: ['English', 'Bahasa Indonesia'] },
-  '17': { name: 'Dr. Robert Kim', subjects: ['Physics', 'Quantum Mechanics', 'Atomic Physics'], languages: ['English'] },
-  '18': { name: 'Prof. Huang Mei', subjects: ['Computer Science', 'Web Development', 'JavaScript'], languages: ['English', 'Mandarin'] },
-};
 
 export default function TutoringSessionPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
+  const { addToast } = useToast();
+  
   const tutorId = params?.tutorId as string;
+  const sessionId = searchParams?.get('sessionId');
   
   // Check if this is a tutor-created session (starts with "tutor-")
   const isTutorSession = tutorId.startsWith('tutor-');
-  const userRole = typeof window !== 'undefined' ? localStorage.getItem('ezstudy_user_role') : null;
+  const actualSessionId = isTutorSession ? tutorId.replace('tutor-', '') : sessionId;
   
-  // For tutor sessions, use tutor's own info
-  const tutor = isTutorSession 
-    ? { name: 'You (Tutor)', subjects: ['General'], languages: ['English'] }
-    : MOCK_TUTORS[tutorId] || { name: 'Tutor', subjects: [], languages: [] };
-
+  const [tutor, setTutor] = useState<{ name: string; subjects: string[]; languages: string[] } | null>(null);
+  const [session, setSession] = useState<FirestoreSession | null>(null);
+  const [loading, setLoading] = useState(true);
   const [myId, setMyId] = useState('');
   const [remotePeerId, setRemotePeerId] = useState('');
   const [isInitializing, setIsInitializing] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
   const [showMediaPreview, setShowMediaPreview] = useState(false);
-  const [isMuted, setIsMuted] = useState(true); // Start muted by default
-  const [isVideoOff, setIsVideoOff] = useState(true); // Start with video off by default
+  const [isMuted, setIsMuted] = useState(true);
+  const [isVideoOff, setIsVideoOff] = useState(true);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; message: string; timestamp: Date }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [participants, setParticipants] = useState(1);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [sourceLang, setSourceLang] = useState<Language>('en');
-  const [targetLang, setTargetLang] = useState<Language>(tutor.languages.includes('Mandarin') ? 'zh' : tutor.languages.includes('Bahasa Indonesia') ? 'id' : 'en');
+  const [targetLang, setTargetLang] = useState<Language>('en');
   
   const peerRef = useRef<any>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -77,12 +64,99 @@ export default function TutoringSessionPage() {
   const dataChannelsRef = useRef<Map<string, any>>(new Map());
   const callRef = useRef<any>(null);
 
+  // Load session and tutor data from Firestore
+  useEffect(() => {
+    const loadSessionData = async () => {
+      if (!user || authLoading) return;
+      
+      setLoading(true);
+      try {
+        if (actualSessionId) {
+          // Load session from Firestore
+          const firestoreSession = await getSession(actualSessionId);
+          if (firestoreSession) {
+            setSession(firestoreSession);
+            
+            // Load tutor info
+            if (isTutorSession) {
+              // For tutor sessions, get tutor by userId
+              const tutorProfile = await getTutorByUserId(user.uid);
+              if (tutorProfile) {
+                setTutor({
+                  name: tutorProfile.name,
+                  subjects: tutorProfile.subjects,
+                  languages: tutorProfile.languages,
+                });
+                setTargetLang(tutorProfile.languages.includes('Mandarin') ? 'zh' : tutorProfile.languages.includes('Bahasa Indonesia') ? 'id' : 'en');
+              } else {
+                setTutor({ name: 'You (Tutor)', subjects: ['General'], languages: ['English'] });
+              }
+            } else {
+              // For student sessions, get tutor by tutorId
+              const tutorProfile = await getTutor(firestoreSession.tutorId);
+              if (tutorProfile) {
+                setTutor({
+                  name: tutorProfile.name,
+                  subjects: tutorProfile.subjects,
+                  languages: tutorProfile.languages,
+                });
+                setTargetLang(tutorProfile.languages.includes('Mandarin') ? 'zh' : tutorProfile.languages.includes('Bahasa Indonesia') ? 'id' : 'en');
+              } else {
+                setTutor({ name: 'Tutor', subjects: [], languages: [] });
+              }
+            }
+            
+            // Use peerId from session if available
+            if (firestoreSession.peerId) {
+              setRemotePeerId(firestoreSession.peerId);
+            }
+          } else {
+            addToast({ title: 'Error', description: 'Session not found', type: 'error' });
+            router.push('/tutoring');
+          }
+        } else if (!isTutorSession) {
+          // Student session without sessionId - load tutor directly
+          const tutorProfile = await getTutor(tutorId);
+          if (tutorProfile) {
+            setTutor({
+              name: tutorProfile.name,
+              subjects: tutorProfile.subjects,
+              languages: tutorProfile.languages,
+            });
+            setTargetLang(tutorProfile.languages.includes('Mandarin') ? 'zh' : tutorProfile.languages.includes('Bahasa Indonesia') ? 'id' : 'en');
+          } else {
+            addToast({ title: 'Error', description: 'Tutor not found', type: 'error' });
+            router.push('/tutoring');
+          }
+        } else {
+          // Tutor session without sessionId - use tutor's own info
+          const tutorProfile = await getTutorByUserId(user.uid);
+          if (tutorProfile) {
+            setTutor({
+              name: tutorProfile.name,
+              subjects: tutorProfile.subjects,
+              languages: tutorProfile.languages,
+            });
+          } else {
+            setTutor({ name: 'You (Tutor)', subjects: ['General'], languages: ['English'] });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading session data:', error);
+        addToast({ title: 'Error', description: 'Failed to load session', type: 'error' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSessionData();
+  }, [user, authLoading, actualSessionId, isTutorSession, tutorId, router, addToast]);
+
   // Initialize PeerJS on mount
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || loading) return;
 
     const loadPeerJS = async () => {
-      // Load PeerJS if not already loaded
       if (!(window as any).Peer) {
         return new Promise<void>((resolve) => {
           const script = document.createElement('script');
@@ -100,111 +174,95 @@ export default function TutoringSessionPage() {
           document.head.appendChild(script);
         });
       }
+      return Promise.resolve();
     };
 
     const initPeer = async () => {
       await loadPeerJS();
-      
       if (!(window as any).Peer) {
         setIsInitializing(false);
         return;
       }
 
-      try {
-        const Peer = (window as any).Peer;
-        const peer = new Peer(undefined, {
-          host: '0.peerjs.com',
-          port: 443,
-          path: '/',
-          secure: true,
-        });
+      const Peer = (window as any).Peer;
+      const peer = new Peer();
 
-        peer.on('open', (id: string) => {
-          console.log('My Peer ID:', id);
-          setMyId(id);
-          peerRef.current = peer;
-          setIsInitializing(false);
-        });
-
-        peer.on('error', (err: any) => {
-          console.error('Peer error:', err);
-          if (err.type === 'peer-unavailable') {
-            // Peer ID not found - this is normal when connecting
-            return;
-          }
-          setIsInitializing(false);
-        });
-
-        peer.on('call', async (call: any) => {
-          console.log('Incoming call from:', call.peer);
-          // Handle incoming call inline to avoid dependency issues
-          try {
-            setConnectionStatus('connecting');
-            // Use current state - video/audio should already be set from preview
-            if (!localStreamRef.current) {
-              // If no stream exists, request it (shouldn't happen if preview was used)
-              const stream = await getLocalStream(!isVideoOff, !isMuted);
-              call.answer(stream);
-            } else {
-              // Use existing stream
-              call.answer(localStreamRef.current);
-            }
-            callRef.current = call;
-
-            call.on('stream', (remoteStream: MediaStream) => {
-              console.log('Received remote stream');
-              remoteStreamRef.current = remoteStream;
-              if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = remoteStream;
-                // Force play the remote video
-                remoteVideoRef.current.play().catch(err => {
-                  console.error('Error playing remote video:', err);
-                });
-              }
-              setParticipants(2);
-              setIsInCall(true);
-              setConnectionStatus('connected');
-              
-              // CRITICAL: Create data channel BACK to the caller for bidirectional chat
-              if (peerRef.current && call.peer) {
-                const returnConn = peerRef.current.connect(call.peer, {
-                  reliable: true,
-                });
-                handleDataConnection(returnConn);
-              }
-            });
-
-            call.on('close', () => {
-              console.log('Call closed');
-              cleanup();
-            });
-
-            call.on('error', (err: any) => {
-              console.error('Call error:', err);
-              if (err.type !== 'peer-unavailable') {
-                setConnectionStatus('disconnected');
-              }
-            });
-          } catch (error) {
-            console.error('Error handling incoming call:', error);
-            setConnectionStatus('disconnected');
-          }
-        });
-
-        peer.on('connection', (conn: any) => {
-          console.log('Incoming data connection from:', conn.peer);
-          handleDataConnection(conn);
-        });
-
-        peer.on('disconnected', () => {
-          console.log('Peer disconnected');
-          setConnectionStatus('disconnected');
-        });
-
-      } catch (error) {
-        console.error('Error initializing Peer:', error);
+      peer.on('open', (id: string) => {
+        console.log('My peer ID is:', id);
+        setMyId(id);
         setIsInitializing(false);
-      }
+        
+        // Update session with peerId if session exists
+        if (actualSessionId && session && !session.peerId) {
+          updateSession(actualSessionId, { peerId: id }).catch(console.error);
+        }
+      });
+
+      peer.on('error', (err: any) => {
+        console.error('Peer error:', err);
+        setIsInitializing(false);
+      });
+
+      peerRef.current = peer;
+
+      peer.on('call', async (call: any) => {
+        console.log('Incoming call from:', call.peer);
+        try {
+          setConnectionStatus('connecting');
+          if (!localStreamRef.current) {
+            const stream = await getLocalStream(!isVideoOff, !isMuted);
+            call.answer(stream);
+          } else {
+            call.answer(localStreamRef.current);
+          }
+          callRef.current = call;
+
+          call.on('stream', (remoteStream: MediaStream) => {
+            console.log('Received remote stream');
+            remoteStreamRef.current = remoteStream;
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream;
+              remoteVideoRef.current.play().catch(err => {
+                console.error('Error playing remote video:', err);
+              });
+            }
+            setParticipants(2);
+            setIsInCall(true);
+            setConnectionStatus('connected');
+            
+            // Update session status to active
+            if (actualSessionId) {
+              updateSession(actualSessionId, { status: 'active' }).catch(console.error);
+            }
+            
+            // Create return data channel
+            if (peerRef.current && call.peer) {
+              const returnConn = peerRef.current.connect(call.peer, { reliable: true });
+              handleDataConnection(returnConn);
+            }
+          });
+
+          call.on('close', () => {
+            console.log('Call closed');
+            cleanup();
+          });
+
+          call.on('error', (err: any) => {
+            console.error('Call error:', err);
+            if (err.type !== 'peer-unavailable') {
+              setConnectionStatus('disconnected');
+            }
+          });
+        } catch (error) {
+          console.error('Error handling incoming call:', error);
+          setConnectionStatus('disconnected');
+        }
+      });
+
+      peer.on('connection', (conn: any) => {
+        console.log('Incoming data connection from:', conn.peer);
+        handleDataConnection(conn);
+      });
     };
 
     initPeer();
@@ -212,129 +270,18 @@ export default function TutoringSessionPage() {
     return () => {
       cleanup();
     };
-  }, []);
-
-  const cleanup = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-    }
-    if (remoteStreamRef.current) {
-      remoteStreamRef.current.getTracks().forEach(track => track.stop());
-      remoteStreamRef.current = null;
-    }
-    if (callRef.current) {
-      callRef.current.close();
-      callRef.current = null;
-    }
-    dataChannelsRef.current.forEach(conn => {
-      try {
-        conn.close();
-      } catch (e) {
-        console.error('Error closing data connection:', e);
-      }
-    });
-    dataChannelsRef.current.clear();
-    if (peerRef.current) {
-      try {
-        peerRef.current.destroy();
-      } catch (e) {
-        console.error('Error destroying peer:', e);
-      }
-      peerRef.current = null;
-    }
-    setIsInCall(false);
-    setParticipants(1);
-    setConnectionStatus('disconnected');
-  };
-
-  const getLocalStream = async (video: boolean, audio: boolean) => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: video ? { 
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        } : false,
-        audio: audio,
-      });
-      
-      // Ensure tracks are in the correct state
-      stream.getVideoTracks().forEach(track => {
-        track.enabled = video;
-      });
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = audio;
-      });
-      
-      localStreamRef.current = stream;
-      
-      // Update video element
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true; // Always mute local video to prevent echo
-        // Force play
-        localVideoRef.current.play().catch(err => {
-          console.error('Error playing local video:', err);
-        });
-      }
-      
-      return stream;
-    } catch (error: any) {
-      console.error('Error accessing media devices:', error);
-      throw error;
-    }
-  };
-
-  const handleIncomingCallInternal = async (call: any) => {
-    try {
-      setConnectionStatus('connecting');
-      const stream = await getLocalStream(!isVideoOff, !isMuted);
-      call.answer(stream);
-      callRef.current = call;
-
-      call.on('stream', (remoteStream: MediaStream) => {
-        console.log('Received remote stream');
-        remoteStreamRef.current = remoteStream;
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream;
-        }
-        setParticipants(2);
-        setIsInCall(true);
-        setConnectionStatus('connected');
-      });
-
-      call.on('close', () => {
-        console.log('Call closed');
-        cleanup();
-      });
-
-      call.on('error', (err: any) => {
-        console.error('Call error:', err);
-        cleanup();
-      });
-
-    } catch (error) {
-      console.error('Error handling incoming call:', error);
-      setConnectionStatus('disconnected');
-    }
-  };
+  }, [loading, isVideoOff, isMuted, actualSessionId, session]);
 
   const handleDataConnection = (conn: any) => {
-    // Check if connection already exists
-    if (dataChannelsRef.current.has(conn.peer)) {
-      console.log('Data connection already exists for:', conn.peer);
-      return;
-    }
+    dataChannelsRef.current.set(conn.peer, conn);
+    setParticipants(prev => Math.max(2, prev + 1));
 
     conn.on('open', () => {
-      console.log('Data connection opened with:', conn.peer);
-      dataChannelsRef.current.set(conn.peer, conn);
-      // Send a welcome message to confirm connection
+      console.log('Data connection opened:', conn.peer);
       try {
         conn.send(JSON.stringify({
-          name: isTutorSession ? 'Tutor' : 'Student',
-          message: 'Connected! Chat is now active.',
           type: 'system',
+          message: 'Connection established',
         }));
       } catch (e) {
         console.error('Error sending welcome message:', e);
@@ -344,7 +291,6 @@ export default function TutoringSessionPage() {
     conn.on('data', (data: string) => {
       try {
         const message = JSON.parse(data);
-        // Don't show system messages in chat
         if (message.type === 'system') {
           console.log('System message:', message.message);
           return;
@@ -377,14 +323,12 @@ export default function TutoringSessionPage() {
     setIsVideoOff(!videoEnabled);
     localStreamRef.current = stream;
     
-    // Update video element immediately
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
       localVideoRef.current.muted = true;
       localVideoRef.current.play().catch(console.error);
     }
     
-    // Now start the call if we have a remote peer ID
     if (remotePeerId.trim()) {
       await startCallWithStream(stream);
     }
@@ -396,7 +340,7 @@ export default function TutoringSessionPage() {
     }
 
     if (!peerRef.current) {
-      alert('PeerJS not initialized. Please wait...');
+      addToast({ title: 'Error', description: 'PeerJS not initialized. Please wait...', type: 'error' });
       return;
     }
 
@@ -404,7 +348,6 @@ export default function TutoringSessionPage() {
     setConnectionStatus('connecting');
 
     try {
-      // Make the call with the provided stream
       const call = peerRef.current.call(remotePeerId, stream);
       callRef.current = call;
 
@@ -413,7 +356,6 @@ export default function TutoringSessionPage() {
         remoteStreamRef.current = remoteStream;
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
-          // Force play
           remoteVideoRef.current.play().catch(err => {
             console.error('Error playing remote video:', err);
           });
@@ -421,6 +363,11 @@ export default function TutoringSessionPage() {
         setParticipants(2);
         setIsInCall(true);
         setConnectionStatus('connected');
+        
+        // Update session status to active
+        if (actualSessionId) {
+          updateSession(actualSessionId, { status: 'active' }).catch(console.error);
+        }
       });
 
       call.on('close', () => {
@@ -431,21 +378,18 @@ export default function TutoringSessionPage() {
       call.on('error', (err: any) => {
         console.error('Call error:', err);
         if (err.type !== 'peer-unavailable') {
-          alert(`Connection error: ${err.message || 'Failed to connect. Please check the Peer ID and try again.'}`);
+          addToast({ title: 'Error', description: err.message || 'Failed to connect', type: 'error' });
         }
         setConnectionStatus('disconnected');
         setIsJoining(false);
       });
 
-      // Create data connection for chat
-      const conn = peerRef.current.connect(remotePeerId, {
-        reliable: true,
-      });
+      const conn = peerRef.current.connect(remotePeerId, { reliable: true });
       handleDataConnection(conn);
 
     } catch (error: any) {
       console.error('Error starting call:', error);
-      alert(`Failed to start call: ${error.message || 'Unknown error'}`);
+      addToast({ title: 'Error', description: error.message || 'Failed to start call', type: 'error' });
       setConnectionStatus('disconnected');
     } finally {
       setIsJoining(false);
@@ -454,18 +398,50 @@ export default function TutoringSessionPage() {
 
   const startCall = async () => {
     if (!remotePeerId.trim()) {
-      alert('Please enter the other person\'s Peer ID');
+      addToast({ title: 'Error', description: 'Please enter the other person\'s Peer ID', type: 'error' });
       return;
     }
 
-    // Show media preview first
     if (!localStreamRef.current) {
       setShowMediaPreview(true);
       return;
     }
 
-    // If stream already exists, start call
     await startCallWithStream(localStreamRef.current);
+  };
+
+  const getLocalStream = async (video: boolean, audio: boolean) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: video ? { 
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        } : false,
+        audio: audio,
+      });
+      
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = video;
+      });
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = audio;
+      });
+      
+      localStreamRef.current = stream;
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.play().catch(err => {
+          console.error('Error playing local video:', err);
+        });
+      }
+      
+      return stream;
+    } catch (error: any) {
+      console.error('Error accessing media devices:', error);
+      throw error;
+    }
   };
 
   const toggleMute = () => {
@@ -492,29 +468,59 @@ export default function TutoringSessionPage() {
     if (!chatInput.trim() || dataChannelsRef.current.size === 0) return;
 
     const message = {
-      name: 'You',
+      name: user?.displayName || 'You',
       message: chatInput.trim(),
     };
 
-    setChatMessages(prev => [...prev, {
-      id: Date.now().toString() + Math.random(),
-      name: 'You',
-      message: chatInput.trim(),
-      timestamp: new Date(),
-    }]);
-
-    // Send to all data channels
-    dataChannelsRef.current.forEach(conn => {
+    dataChannelsRef.current.forEach((conn) => {
       try {
-        if (conn.open) {
-          conn.send(JSON.stringify(message));
-        }
+        conn.send(JSON.stringify(message));
       } catch (e) {
         console.error('Error sending message:', e);
       }
     });
 
+    setChatMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      name: 'You',
+      message: chatInput.trim(),
+      timestamp: new Date(),
+    }]);
+
     setChatInput('');
+  };
+
+  const cleanup = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      remoteStreamRef.current = null;
+    }
+    if (callRef.current) {
+      callRef.current.close();
+      callRef.current = null;
+    }
+    dataChannelsRef.current.forEach(conn => conn.close());
+    dataChannelsRef.current.clear();
+    if (peerRef.current) {
+      try {
+        peerRef.current.destroy();
+      } catch (e) {
+        console.error('Error destroying peer:', e);
+      }
+      peerRef.current = null;
+    }
+    setIsInCall(false);
+    setParticipants(1);
+    setConnectionStatus('disconnected');
+    
+    // Update session status to completed
+    if (actualSessionId) {
+      updateSession(actualSessionId, { status: 'completed' }).catch(console.error);
+    }
   };
 
   const leaveCall = () => {
@@ -525,43 +531,60 @@ export default function TutoringSessionPage() {
   const copyPeerId = () => {
     if (myId) {
       navigator.clipboard.writeText(myId);
-      alert('Peer ID copied to clipboard!');
+      addToast({ title: 'Copied!', description: 'Peer ID copied to clipboard', type: 'success' });
     }
   };
 
-  if (isInitializing) {
+  if (authLoading || loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center card p-8">
-          <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Initializing Video Call</h2>
-          <p className="text-gray-600">Setting up your connection...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!tutor) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <div className="text-center">
+          <p className="text-gray-600">Loading session...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Header */}
+    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200">
         <div className="container mx-auto px-6 py-4 max-w-7xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg">
-                {tutor.name.charAt(0)}
-              </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push('/tutoring')}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="h-5 w-5 text-gray-600" />
+              </button>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Session with {tutor.name}</h1>
-                <p className="text-xs text-gray-500 font-medium">{tutor.subjects.join(' • ')}</p>
+                <h1 className="text-xl font-bold text-gray-900">
+                  {isTutorSession ? 'Tutor Session' : `Session with ${tutor.name}`}
+                </h1>
+                <p className="text-xs text-gray-500 font-medium">
+                  {session?.subject || tutor.subjects[0] || 'General'}
+                </p>
               </div>
             </div>
-            <button
-              onClick={() => router.push('/tutoring')}
-              className="px-5 py-2.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all border border-gray-200 font-semibold shadow-sm"
-            >
-              Back to Tutors
-            </button>
+            {session && (
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  session.status === 'active' ? 'bg-green-100 text-green-700' :
+                  session.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {session.status}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -592,77 +615,61 @@ export default function TutoringSessionPage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={myId || 'Generating...'}
+                    value={myId}
                     readOnly
-                    className="flex-1 input bg-gray-50"
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 font-mono text-sm"
+                    placeholder={isInitializing ? 'Initializing...' : 'Your Peer ID will appear here'}
                   />
                   <button
                     onClick={copyPeerId}
                     disabled={!myId}
-                    className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Copy Peer ID"
                   >
-                            <ClipboardDocumentIcon className="h-5 w-5" />
-                    Copy
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Share this ID with the other person so they can connect to you
-                </p>
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
-                </div>
-              </div>
-
-              {/* Connect to Peer ID */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {isTutorSession 
-                    ? "Enter student's Peer ID to connect:" 
-                    : `Enter ${tutor.name}'s Peer ID to connect:`}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={remotePeerId}
-                    onChange={(e) => setRemotePeerId(e.target.value)}
-                    placeholder="Enter peer ID here"
-                    className="flex-1 input"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && remotePeerId.trim()) {
-                        startCall();
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={startCall}
-                    disabled={isJoining || !remotePeerId.trim() || connectionStatus === 'connecting'}
-                    className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
-                  >
-                    {isJoining ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Connecting...
-                      </>
-                    ) : (
-                      <>
-                        <VideoCameraIcon className="h-5 w-5" />
-                        Join Session
-                      </>
-                    )}
+                    <ClipboardDocumentIcon className="h-5 w-5" />
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                   {isTutorSession 
                     ? 'Ask the student for their Peer ID and enter it above'
-                    : `Ask ${tutor.name} for their Peer ID and enter it above`}
+                    : 'Share your Peer ID with the tutor'}
                 </p>
               </div>
+
+              {/* Enter Peer ID to Connect */}
+              {!isTutorSession && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Enter Tutor&apos;s Peer ID to connect:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={remotePeerId}
+                      onChange={(e) => setRemotePeerId(e.target.value)}
+                      placeholder="Enter Peer ID"
+                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={startCall}
+                      disabled={isJoining || !remotePeerId.trim()}
+                      className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                    >
+                      {isJoining ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <VideoCameraIcon className="h-5 w-5" />
+                          Join Session
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Connection Status */}
               {connectionStatus === 'connecting' && (
@@ -801,10 +808,10 @@ export default function TutoringSessionPage() {
               </div>
 
               <div className="space-y-3 mb-4 max-h-[500px] overflow-y-auto">
-                        {chatMessages.length === 0 ? (
-                          <div className="text-center py-12">
-                            <ChatBubbleLeftRightIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-sm text-gray-500">No messages yet</p>
+                {chatMessages.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ChatBubbleLeftRightIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">No messages yet</p>
                     <p className="text-xs text-gray-400 mt-1">
                       {dataChannelsRef.current.size === 0 
                         ? 'Waiting for connection...' 
@@ -828,20 +835,26 @@ export default function TutoringSessionPage() {
                 )}
               </div>
 
-              <div className="flex gap-2 pt-4 border-t border-gray-200">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
                   placeholder="Type a message..."
-                  className="flex-1 input"
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   disabled={dataChannelsRef.current.size === 0}
                 />
                 <button
                   onClick={sendChatMessage}
                   disabled={!chatInput.trim() || dataChannelsRef.current.size === 0}
                   className="px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  aria-label="Send message"
                 >
                   <PaperAirplaneIcon className="h-5 w-5" />
                 </button>
@@ -850,6 +863,14 @@ export default function TutoringSessionPage() {
           </div>
         )}
       </div>
+
+      {/* Media Preview Modal */}
+      {showMediaPreview && (
+        <MediaPreview
+          onJoin={handleJoinWithMedia}
+          onCancel={() => setShowMediaPreview(false)}
+        />
+      )}
     </main>
   );
 }
