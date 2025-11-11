@@ -79,23 +79,50 @@ export default function TutoringSessionPage() {
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const dataChannelsRef = useRef<Map<string, any>>(new Map());
   const callRef = useRef<any>(null);
+  const isInitializingRef = useRef<boolean>(false);
+  const hasInitializedRef = useRef<boolean>(false);
 
   // Cleanup function for PeerJS connections
   const cleanup = useCallback(() => {
+    console.log('Cleaning up PeerJS connections...');
+    
+    // Stop all media tracks
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
       localStreamRef.current = null;
     }
     if (remoteStreamRef.current) {
-      remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      remoteStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
       remoteStreamRef.current = null;
     }
+    
+    // Close call
     if (callRef.current) {
-      callRef.current.close();
+      try {
+        callRef.current.close();
+      } catch (e) {
+        console.error('Error closing call:', e);
+      }
       callRef.current = null;
     }
-    dataChannelsRef.current.forEach(conn => conn.close());
+    
+    // Close data channels
+    dataChannelsRef.current.forEach(conn => {
+      try {
+        conn.close();
+      } catch (e) {
+        console.error('Error closing data channel:', e);
+      }
+    });
     dataChannelsRef.current.clear();
+    
+    // Destroy peer
     if (peerRef.current) {
       try {
         peerRef.current.destroy();
@@ -104,9 +131,20 @@ export default function TutoringSessionPage() {
       }
       peerRef.current = null;
     }
+    
+    // Clear video elements
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+    
     setIsInCall(false);
     setParticipants(1);
     setConnectionStatus('disconnected');
+    hasInitializedRef.current = false;
+    isInitializingRef.current = false;
     
     // Update session status to completed
     if (actualSessionId) {
@@ -204,13 +242,35 @@ export default function TutoringSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, actualSessionId, isTutorSession, tutorId, router, addToast]);
 
-  // Initialize PeerJS on mount
+  // Initialize PeerJS on mount - SINGLE INSTANCE ONLY
   useEffect(() => {
-    if (typeof window === 'undefined' || loading) return;
+    if (typeof window === 'undefined' || loading || authLoading) return;
+    
+    // Prevent multiple initializations
+    if (hasInitializedRef.current || isInitializingRef.current) {
+      console.log('PeerJS already initialized or initializing, skipping...');
+      return;
+    }
+    
+    // Cleanup any existing peer before creating new one
+    if (peerRef.current) {
+      console.log('Cleaning up existing peer before re-initialization...');
+      cleanup();
+    }
+
+    isInitializingRef.current = true;
+    setIsInitializing(true);
 
     const loadPeerJS = async () => {
       if (!(window as any).Peer) {
         return new Promise<void>((resolve) => {
+          // Check if script already exists
+          const existingScript = document.querySelector('script[src*="peerjs"]');
+          if (existingScript) {
+            resolve();
+            return;
+          }
+          
           const script = document.createElement('script');
           script.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
           script.async = true;
@@ -221,6 +281,7 @@ export default function TutoringSessionPage() {
           script.onerror = () => {
             console.error('Failed to load PeerJS');
             setIsInitializing(false);
+            isInitializingRef.current = false;
             resolve();
           };
           document.head.appendChild(script);
@@ -230,140 +291,199 @@ export default function TutoringSessionPage() {
     };
 
     const initPeer = async () => {
-      await loadPeerJS();
-      if (!(window as any).Peer) {
-        setIsInitializing(false);
-        return;
-      }
-
-      const Peer = (window as any).Peer;
-      const peer = new Peer();
-
-      peer.on('open', (id: string) => {
-        console.log('My peer ID is:', id);
-        setMyId(id);
-        setIsInitializing(false);
-        
-        // Update session with peerId if session exists (for tutors)
-        if (actualSessionId && session && isTutorSession && !session.peerId) {
-          updateSession(actualSessionId, { peerId: id }).catch(console.error);
+      try {
+        await loadPeerJS();
+        if (!(window as any).Peer) {
+          console.error('PeerJS library not available');
+          setIsInitializing(false);
+          isInitializingRef.current = false;
+          return;
         }
-        
-        // For tutors: Don't auto-request media - let them enable it manually (like Google Meet)
-        // Tutors can enable camera/mic using the toggle buttons in the waiting room
-        if (isTutorSession) {
-          setConnectionStatus('connecting'); // Shows "Waiting for student..."
+
+        // Double-check we don't already have a peer
+        if (peerRef.current) {
+          console.log('Peer already exists, skipping initialization');
+          return;
         }
+
+        const Peer = (window as any).Peer;
         
-        // For students: Show media preview modal to enable camera/mic before joining
-        // Don't auto-request media - let user choose in MediaPreview modal
-        if (!isTutorSession && remotePeerId && remotePeerId !== id && !isInCall && !showMediaPreview) {
-          // Show media preview modal for students to enable camera/mic before joining
-          setTimeout(() => {
-            setShowMediaPreview(true);
-          }, 500);
-        }
-      });
-
-      peer.on('error', (err: any) => {
-        console.error('Peer error:', err);
-        setIsInitializing(false);
-      });
-
-      peerRef.current = peer;
-
-      peer.on('call', async (call: any) => {
-        console.log('Incoming call from:', call.peer);
-        try {
-          setConnectionStatus('connecting');
-          if (!localStreamRef.current) {
-            const stream = await getLocalStream(!isVideoOff, !isMuted);
-            call.answer(stream);
-          } else {
-            call.answer(localStreamRef.current);
+        // Create peer with explicit configuration
+        const peer = new Peer({
+          debug: 2, // Enable debug logging
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' }
+            ]
           }
-          callRef.current = call;
+        });
 
-          call.on('stream', (remoteStream: MediaStream) => {
-            console.log('Received remote stream');
-            remoteStreamRef.current = remoteStream;
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream;
-              remoteVideoRef.current.play().catch(err => {
-                console.error('Error playing remote video:', err);
-              });
+        peer.on('open', (id: string) => {
+          console.log('✅ PeerJS initialized successfully. My peer ID is:', id);
+          setMyId(id);
+          setIsInitializing(false);
+          isInitializingRef.current = false;
+          hasInitializedRef.current = true;
+          
+          // Update session with peerId if session exists (for tutors)
+          if (actualSessionId && session && isTutorSession && !session.peerId) {
+            updateSession(actualSessionId, { peerId: id }).catch(console.error);
+          }
+          
+          // For tutors: Don't auto-request media - let them enable it manually (like Google Meet)
+          // Tutors can enable camera/mic using the toggle buttons in the waiting room
+          if (isTutorSession) {
+            setConnectionStatus('connecting'); // Shows "Waiting for student..."
+          }
+          
+          // For students: Show media preview modal to enable camera/mic before joining
+          // Don't auto-request media - let user choose in MediaPreview modal
+          if (!isTutorSession && remotePeerId && remotePeerId !== id && !isInCall && !showMediaPreview) {
+            // Show media preview modal for students to enable camera/mic before joining
+            setTimeout(() => {
+              setShowMediaPreview(true);
+            }, 500);
+          }
+        });
+
+        peer.on('error', (err: any) => {
+          console.error('❌ Peer error:', err);
+          setIsInitializing(false);
+          isInitializingRef.current = false;
+          
+          // Handle specific errors
+          if (err.type === 'peer-unavailable') {
+            addToast({ 
+              title: 'Connection Error', 
+              description: 'The other peer is not available. Please check the Peer ID.', 
+              type: 'error' 
+            });
+          } else if (err.type === 'network') {
+            addToast({ 
+              title: 'Network Error', 
+              description: 'Network connection failed. Please check your internet connection.', 
+              type: 'error' 
+            });
+          }
+        });
+
+        peerRef.current = peer;
+
+        peer.on('call', async (call: any) => {
+          console.log('📞 Incoming call from:', call.peer);
+          try {
+            setConnectionStatus('connecting');
+            if (!localStreamRef.current) {
+              // Request media if not available
+              const stream = await getLocalStream(!isVideoOff, !isMuted);
+              call.answer(stream);
+            } else {
+              call.answer(localStreamRef.current);
             }
-            setParticipants(2);
-            setIsInCall(true);
-            setConnectionStatus('connected');
-            setConnectionQuality('good'); // Default to good
-            
-            // Monitor connection quality
-            const audioTracks = remoteStream.getAudioTracks();
-            if (audioTracks.length > 0) {
-              const audioTrack = audioTracks[0];
-              const checkQuality = () => {
-                if (audioTrack.readyState === 'live') {
-                  const videoTracks = remoteStream.getVideoTracks();
-                  if (videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
-                    setConnectionQuality('excellent');
+            callRef.current = call;
+
+            call.on('stream', (remoteStream: MediaStream) => {
+              console.log('✅ Received remote stream from:', call.peer);
+              remoteStreamRef.current = remoteStream;
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = remoteStream;
+                remoteVideoRef.current.play().catch(err => {
+                  console.error('Error playing remote video:', err);
+                });
+              }
+              setParticipants(2);
+              setIsInCall(true);
+              setConnectionStatus('connected');
+              setConnectionQuality('good');
+              
+              // Monitor connection quality
+              const audioTracks = remoteStream.getAudioTracks();
+              if (audioTracks.length > 0) {
+                const audioTrack = audioTracks[0];
+                const checkQuality = () => {
+                  if (audioTrack.readyState === 'live') {
+                    const videoTracks = remoteStream.getVideoTracks();
+                    if (videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
+                      setConnectionQuality('excellent');
+                    } else {
+                      setConnectionQuality('good');
+                    }
                   } else {
-                    setConnectionQuality('good');
+                    setConnectionQuality('poor');
                   }
-                } else {
+                };
+                checkQuality();
+                const qualityInterval = setInterval(checkQuality, 5000);
+                audioTrack.onended = () => {
+                  clearInterval(qualityInterval);
                   setConnectionQuality('poor');
-                }
-              };
-              checkQuality();
-              const qualityInterval = setInterval(checkQuality, 5000);
-              audioTrack.onended = () => {
-                clearInterval(qualityInterval);
-                setConnectionQuality('poor');
-              };
-            }
-            
-            // Update session status to active
-            if (actualSessionId) {
-              updateSession(actualSessionId, { status: 'active' }).catch(console.error);
-            }
-            
-            // Create return data channel
-            if (peerRef.current && call.peer) {
-              const returnConn = peerRef.current.connect(call.peer, { reliable: true });
-              handleDataConnection(returnConn);
-            }
-          });
+                };
+              }
+              
+              // Update session status to active
+              if (actualSessionId) {
+                updateSession(actualSessionId, { status: 'active' }).catch(console.error);
+              }
+              
+              // Create return data channel for chat
+              if (peerRef.current && call.peer) {
+                const returnConn = peerRef.current.connect(call.peer, { reliable: true });
+                handleDataConnection(returnConn);
+              }
+            });
 
-          call.on('close', () => {
-            console.log('Call closed');
-            cleanup();
-          });
+            call.on('close', () => {
+              console.log('📞 Call closed');
+              cleanup();
+            });
 
-          call.on('error', (err: any) => {
-            console.error('Call error:', err);
-            if (err.type !== 'peer-unavailable') {
-              setConnectionStatus('disconnected');
-            }
-          });
-        } catch (error) {
-          console.error('Error handling incoming call:', error);
-          setConnectionStatus('disconnected');
-        }
-      });
+            call.on('error', (err: any) => {
+              console.error('❌ Call error:', err);
+              if (err.type !== 'peer-unavailable') {
+                setConnectionStatus('disconnected');
+                addToast({ 
+                  title: 'Call Error', 
+                  description: err.message || 'Call failed. Please try again.', 
+                  type: 'error' 
+                });
+              }
+            });
+          } catch (error: any) {
+            console.error('❌ Error handling incoming call:', error);
+            setConnectionStatus('disconnected');
+            addToast({ 
+              title: 'Call Error', 
+              description: error.message || 'Failed to answer call. Please try again.', 
+              type: 'error' 
+            });
+          }
+        });
 
-      peer.on('connection', (conn: any) => {
-        console.log('Incoming data connection from:', conn.peer);
-        handleDataConnection(conn);
-      });
+        peer.on('connection', (conn: any) => {
+          console.log('🔗 Incoming data connection from:', conn.peer);
+          handleDataConnection(conn);
+        });
+      } catch (error) {
+        console.error('❌ Error initializing PeerJS:', error);
+        setIsInitializing(false);
+        isInitializingRef.current = false;
+        addToast({ 
+          title: 'Connection Error', 
+          description: 'Failed to initialize video connection. Please refresh the page.', 
+          type: 'error' 
+        });
+      }
     };
 
     initPeer();
 
     return () => {
+      console.log('🧹 useEffect cleanup: cleaning up PeerJS...');
       cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, isVideoOff, isMuted, actualSessionId, session, cleanup]);
+  }, [loading, authLoading, actualSessionId, session, cleanup]);
 
   const handleDataConnection = (conn: any) => {
     dataChannelsRef.current.set(conn.peer, conn);
@@ -429,11 +549,13 @@ export default function TutoringSessionPage() {
 
   const startCallWithStream = useCallback(async (stream: MediaStream) => {
     if (!remotePeerId.trim() && !isTutorSession) {
+      console.warn('⚠️ No remote peer ID provided');
       return;
     }
     
     // For tutors: just wait for incoming calls, don't initiate
     if (isTutorSession) {
+      console.log('👨‍🏫 Tutor waiting for incoming call...');
       return;
     }
 
@@ -442,15 +564,24 @@ export default function TutoringSessionPage() {
       return;
     }
 
+    if (!peerRef.current.open) {
+      addToast({ title: 'Error', description: 'PeerJS not ready. Please wait...', type: 'error' });
+      return;
+    }
+
+    console.log('📞 Initiating call to:', remotePeerId);
     setIsJoining(true);
     setConnectionStatus('connecting');
 
     try {
       const call = peerRef.current.call(remotePeerId, stream);
+      if (!call) {
+        throw new Error('Failed to create call');
+      }
       callRef.current = call;
 
       call.on('stream', (remoteStream: MediaStream) => {
-        console.log('Received remote stream');
+        console.log('✅ Received remote stream from:', remotePeerId);
         remoteStreamRef.current = remoteStream;
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
@@ -461,7 +592,7 @@ export default function TutoringSessionPage() {
         setParticipants(2);
         setIsInCall(true);
         setConnectionStatus('connected');
-        setConnectionQuality('good'); // Default to good
+        setConnectionQuality('good');
         
         // Monitor connection quality
         const audioTracks = remoteStream.getAudioTracks();
@@ -491,33 +622,52 @@ export default function TutoringSessionPage() {
         if (actualSessionId) {
           updateSession(actualSessionId, { status: 'active' }).catch(console.error);
         }
+        
+        addToast({ 
+          title: 'Connected!', 
+          description: 'Video call established successfully.', 
+          type: 'success' 
+        });
       });
 
       call.on('close', () => {
-        console.log('Call closed');
+        console.log('📞 Call closed');
         cleanup();
       });
 
       call.on('error', (err: any) => {
-        console.error('Call error:', err);
+        console.error('❌ Call error:', err);
         if (err.type !== 'peer-unavailable') {
-          addToast({ title: 'Error', description: err.message || 'Failed to connect', type: 'error' });
+          addToast({ 
+            title: 'Connection Error', 
+            description: err.message || 'Failed to connect. Please check the Peer ID.', 
+            type: 'error' 
+          });
         }
         setConnectionStatus('disconnected');
         setIsJoining(false);
       });
 
-      const conn = peerRef.current.connect(remotePeerId, { reliable: true });
-      handleDataConnection(conn);
+      // Create data channel for chat
+      try {
+        const conn = peerRef.current.connect(remotePeerId, { reliable: true });
+        handleDataConnection(conn);
+      } catch (connError) {
+        console.warn('⚠️ Failed to create data channel:', connError);
+        // Continue without chat - video/audio still works
+      }
 
     } catch (error: any) {
-      console.error('Error starting call:', error);
-      addToast({ title: 'Error', description: error.message || 'Failed to start call', type: 'error' });
+      console.error('❌ Error starting call:', error);
+      addToast({ 
+        title: 'Connection Error', 
+        description: error.message || 'Failed to start call. Please try again.', 
+        type: 'error' 
+      });
       setConnectionStatus('disconnected');
-    } finally {
       setIsJoining(false);
     }
-  }, [remotePeerId, isTutorSession, addToast, actualSessionId]);
+  }, [remotePeerId, isTutorSession, addToast, actualSessionId, cleanup]);
 
   const startCall = useCallback(async () => {
     if (!remotePeerId.trim()) {
