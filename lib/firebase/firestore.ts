@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   DocumentData,
   QueryConstraint,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -217,3 +218,19 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await deleteDoc(sessionRef);
 }
 
+// Seed mock tutors
+export async function seedMockTutors(mockTutors: any[]): Promise<void> {
+  const batch = writeBatch(db);
+  const tutorsCollection = collection(db, TUTORS_COLLECTION);
+
+  mockTutors.forEach((tutor) => {
+    const docRef = doc(tutorsCollection);
+    batch.set(docRef, {
+      ...tutor,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+}
