@@ -67,6 +67,7 @@ export default function TutoringSessionPage() {
   const [chatInput, setChatInput] = useState('');
   const [participants, setParticipants] = useState(1);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [targetLang, setTargetLang] = useState<Language>('en');
   
@@ -243,6 +244,31 @@ export default function TutoringSessionPage() {
             setParticipants(2);
             setIsInCall(true);
             setConnectionStatus('connected');
+            setConnectionQuality('good'); // Default to good
+            
+            // Monitor connection quality
+            const audioTracks = remoteStream.getAudioTracks();
+            if (audioTracks.length > 0) {
+              const audioTrack = audioTracks[0];
+              const checkQuality = () => {
+                if (audioTrack.readyState === 'live') {
+                  const videoTracks = remoteStream.getVideoTracks();
+                  if (videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
+                    setConnectionQuality('excellent');
+                  } else {
+                    setConnectionQuality('good');
+                  }
+                } else {
+                  setConnectionQuality('poor');
+                }
+              };
+              checkQuality();
+              const qualityInterval = setInterval(checkQuality, 5000);
+              audioTrack.onended = () => {
+                clearInterval(qualityInterval);
+                setConnectionQuality('poor');
+              };
+            }
             
             // Update session status to active
             if (actualSessionId) {
@@ -377,6 +403,31 @@ export default function TutoringSessionPage() {
         setParticipants(2);
         setIsInCall(true);
         setConnectionStatus('connected');
+        setConnectionQuality('good'); // Default to good
+        
+        // Monitor connection quality
+        const audioTracks = remoteStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          const audioTrack = audioTracks[0];
+          const checkQuality = () => {
+            if (audioTrack.readyState === 'live') {
+              const videoTracks = remoteStream.getVideoTracks();
+              if (videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
+                setConnectionQuality('excellent');
+              } else {
+                setConnectionQuality('good');
+              }
+            } else {
+              setConnectionQuality('poor');
+            }
+          };
+          checkQuality();
+          const qualityInterval = setInterval(checkQuality, 5000);
+          audioTrack.onended = () => {
+            clearInterval(qualityInterval);
+            setConnectionQuality('poor');
+          };
+        }
         
         // Update session status to active
         if (actualSessionId) {

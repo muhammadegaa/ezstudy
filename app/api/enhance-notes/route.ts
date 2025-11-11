@@ -5,6 +5,25 @@ import { rateLimit, getClientIdentifier } from '@/lib/rateLimit';
 // Creates structured, well-formatted notes suitable for academic use
 
 export async function POST(request: NextRequest) {
+  // Rate limiting
+  const clientId = getClientIdentifier(request);
+  const limitResult = rateLimit(clientId, { windowMs: 60000, maxRequests: 20 }); // 20 requests per minute
+  
+  if (!limitResult.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again later.' },
+      { 
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil((limitResult.resetTime - Date.now()) / 1000)),
+          'X-RateLimit-Limit': '20',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(limitResult.resetTime),
+        },
+      }
+    );
+  }
+  
   try {
     const body = await request.json();
     const { originalText, translatedText, concepts } = body;
