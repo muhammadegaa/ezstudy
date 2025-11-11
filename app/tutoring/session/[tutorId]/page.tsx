@@ -865,7 +865,7 @@ export default function TutoringSessionPage() {
                 <button
                   onClick={sendChatMessage}
                   disabled={!chatInput.trim() || dataChannelsRef.current.size === 0}
-                  className="px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="px-5 py-3 h-11 min-h-[44px] min-w-[44px] bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   aria-label="Send message"
                 >
                   <PaperAirplaneIcon className="h-5 w-5" />

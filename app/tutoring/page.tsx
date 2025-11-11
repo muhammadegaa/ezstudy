@@ -769,7 +769,7 @@ export default function TutoringPage() {
 
                 <button
                   onClick={() => handleBookSession(tutor.id)}
-                  className="w-full mt-4 px-4 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                  className="w-full mt-4 px-4 py-3 h-11 min-h-[44px] bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
                   <Video className="h-5 w-5" />
                   Book Session

@@ -670,7 +670,7 @@ export default function LiveLearningAssistant({
             <button
               onClick={handleToggle}
               disabled={isRequestingPermission || isSupported === false}
-              className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 ${
+              className={`px-6 py-3 h-11 min-h-[44px] rounded-xl font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 ${
                 isActive
                   ? 'bg-red-500 text-white hover:bg-red-600'
                   : 'bg-primary-600 text-white hover:bg-primary-700'

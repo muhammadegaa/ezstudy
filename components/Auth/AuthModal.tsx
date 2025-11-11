@@ -8,6 +8,7 @@ import { createOrUpdateUserProfile } from '@/lib/firebase/userProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/Toast';
 import Button from '@/components/ui/Button';
+import { signUpSchema, signInSchema, resetPasswordSchema } from '@/lib/validation';
 
 interface AuthModalProps {
   isOpen: boolean;
