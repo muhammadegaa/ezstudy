@@ -924,33 +924,41 @@ export default function TutoringSessionPage() {
                 {/* Video Preview */}
                 <div className="card overflow-hidden">
                   <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden relative">
-                    {localStreamRef.current ? (
-                      <>
-                        <video
-                          ref={localVideoRef}
-                          autoPlay
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover"
-                          style={{ display: isVideoOff ? 'none' : 'block' }}
-                          onLoadedMetadata={() => {
+                    {/* Video element - always present when stream exists */}
+                    {localStreamRef.current && (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover absolute inset-0"
+                        style={{ 
+                          display: isVideoOff ? 'none' : 'block',
+                          zIndex: isVideoOff ? 0 : 10
+                        }}
+                        onLoadedMetadata={() => {
+                          console.log('📹 Video metadata loaded');
+                          if (!isVideoOff) {
                             localVideoRef.current?.play().catch(console.error);
-                          }}
-                        />
-                        {isVideoOff && (
-                          <div className="w-full h-full flex items-center justify-center absolute inset-0">
-                            <div className="text-center">
-                              <VideoCameraSlashIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                              <p className="text-gray-400">Camera off</p>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
+                          }
+                        }}
+                        onPlay={() => {
+                          console.log('▶️ Video playing');
+                        }}
+                        onError={(e) => {
+                          console.error('❌ Video error:', e);
+                        }}
+                      />
+                    )}
+                    
+                    {/* Overlay when camera is off or no stream */}
+                    {(!localStreamRef.current || isVideoOff) && (
+                      <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-900 z-20">
                         <div className="text-center">
                           <VideoCameraSlashIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-400">Click camera button to start</p>
+                          <p className="text-gray-400">
+                            {!localStreamRef.current ? 'Click camera button to start' : 'Camera off'}
+                          </p>
                         </div>
                       </div>
                     )}
