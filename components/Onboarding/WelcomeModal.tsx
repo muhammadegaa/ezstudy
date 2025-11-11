@@ -52,7 +52,7 @@ const steps = [
     content: (
       <div className="space-y-4">
         <p className="text-gray-600">
-          Click <strong>"Start Listening"</strong> to begin real-time translation. The system will:
+          Click <strong>&quot;Start Listening&quot;</strong> to begin real-time translation. The system will:
         </p>
         <ul className="space-y-2 text-left text-gray-600">
           <li className="flex items-start gap-2">
@@ -83,7 +83,7 @@ const steps = [
     content: (
       <div className="space-y-4">
         <p className="text-gray-600">
-          Use the <strong>"Take Note"</strong> button to capture important moments:
+          Use the <strong>&quot;Take Note&quot;</strong> button to capture important moments:
         </p>
         <ul className="space-y-2 text-left text-gray-600">
           <li className="flex items-start gap-2">

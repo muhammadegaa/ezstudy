@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { 
   VideoCameraIcon, 
@@ -78,6 +78,40 @@ export default function TutoringSessionPage() {
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const dataChannelsRef = useRef<Map<string, any>>(new Map());
   const callRef = useRef<any>(null);
+
+  // Cleanup function for PeerJS connections
+  const cleanup = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      remoteStreamRef.current = null;
+    }
+    if (callRef.current) {
+      callRef.current.close();
+      callRef.current = null;
+    }
+    dataChannelsRef.current.forEach(conn => conn.close());
+    dataChannelsRef.current.clear();
+    if (peerRef.current) {
+      try {
+        peerRef.current.destroy();
+      } catch (e) {
+        console.error('Error destroying peer:', e);
+      }
+      peerRef.current = null;
+    }
+    setIsInCall(false);
+    setParticipants(1);
+    setConnectionStatus('disconnected');
+    
+    // Update session status to completed
+    if (actualSessionId) {
+      updateSession(actualSessionId, { status: 'completed' }).catch(console.error);
+    }
+  }, [actualSessionId]);
 
   // Load session and tutor data from Firestore
   useEffect(() => {
@@ -310,7 +344,7 @@ export default function TutoringSessionPage() {
     return () => {
       cleanup();
     };
-  }, [loading, isVideoOff, isMuted, actualSessionId, session]);
+  }, [loading, isVideoOff, isMuted, actualSessionId, session, cleanup]);
 
   const handleDataConnection = (conn: any) => {
     dataChannelsRef.current.set(conn.peer, conn);
@@ -553,39 +587,6 @@ export default function TutoringSessionPage() {
     }]);
 
     setChatInput('');
-  };
-
-  const cleanup = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-    }
-    if (remoteStreamRef.current) {
-      remoteStreamRef.current.getTracks().forEach(track => track.stop());
-      remoteStreamRef.current = null;
-    }
-    if (callRef.current) {
-      callRef.current.close();
-      callRef.current = null;
-    }
-    dataChannelsRef.current.forEach(conn => conn.close());
-    dataChannelsRef.current.clear();
-    if (peerRef.current) {
-      try {
-        peerRef.current.destroy();
-      } catch (e) {
-        console.error('Error destroying peer:', e);
-      }
-      peerRef.current = null;
-    }
-    setIsInCall(false);
-    setParticipants(1);
-    setConnectionStatus('disconnected');
-    
-    // Update session status to completed
-    if (actualSessionId) {
-      updateSession(actualSessionId, { status: 'completed' }).catch(console.error);
-    }
   };
 
   const leaveCall = () => {
