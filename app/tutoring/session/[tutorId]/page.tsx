@@ -685,58 +685,82 @@ export default function TutoringSessionPage() {
 
   const getLocalStream = async (video: boolean, audio: boolean) => {
     try {
-      // If requesting permissions, we need at least one to be true to trigger the permission dialog
-      // If both are false but we already have a stream, just toggle tracks
-      if (!video && !audio && localStreamRef.current) {
-        // Just toggle existing tracks
-        localStreamRef.current.getVideoTracks().forEach(track => {
-          track.enabled = false;
+      console.log('🎥 Requesting media stream:', { video, audio, hasExistingStream: !!localStreamRef.current });
+      
+      // If we have an existing stream, just update track states
+      if (localStreamRef.current) {
+        const videoTracks = localStreamRef.current.getVideoTracks();
+        const audioTracks = localStreamRef.current.getAudioTracks();
+        
+        // Update video tracks
+        videoTracks.forEach(track => {
+          track.enabled = video;
         });
-        localStreamRef.current.getAudioTracks().forEach(track => {
-          track.enabled = false;
+        
+        // Update audio tracks
+        audioTracks.forEach(track => {
+          track.enabled = audio;
         });
+        
+        // Update state to match track states
+        setIsVideoOff(!video);
+        setIsMuted(!audio);
+        
+        console.log('✅ Updated existing stream tracks:', { 
+          videoEnabled: video, 
+          audioEnabled: audio,
+          videoTracksCount: videoTracks.length,
+          audioTracksCount: audioTracks.length
+        });
+        
         return localStreamRef.current;
       }
 
-      // Request permissions: if both false, request both anyway (user can disable after)
-      // This ensures permission dialog appears
-      const requestedVideo = video || (!video && !audio && !localStreamRef.current);
-      const requestedAudio = audio || (!video && !audio && !localStreamRef.current);
-
+      // No existing stream - request new one
+      // Always request both video and audio to get permissions, then disable what we don't want
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: requestedVideo ? { 
+        video: { 
           width: { ideal: 1280 },
           height: { ideal: 720 },
-        } : false,
-        audio: requestedAudio,
+        },
+        audio: true,
       });
       
-      // Stop old tracks if we're replacing a stream
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-      }
+      console.log('✅ Got new media stream:', {
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
       
       // Set track enabled states based on what user wants
       stream.getVideoTracks().forEach(track => {
         track.enabled = video;
+        console.log(`Video track ${track.id}: enabled=${video}`);
       });
+      
       stream.getAudioTracks().forEach(track => {
         track.enabled = audio;
+        console.log(`Audio track ${track.id}: enabled=${audio}`);
       });
       
       localStreamRef.current = stream;
       
+      // Update state
+      setIsVideoOff(!video);
+      setIsMuted(!audio);
+      
+      // Update video element
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.muted = true;
         localVideoRef.current.play().catch(err => {
           console.error('Error playing local video:', err);
         });
+        console.log('✅ Video element updated with stream');
       }
       
       return stream;
     } catch (error: any) {
-      console.error('Error accessing media devices:', error);
+      console.error('❌ Error accessing media devices:', error);
       addToast({ 
         title: 'Permission Denied', 
         description: error.name === 'NotAllowedError' 
@@ -873,18 +897,32 @@ export default function TutoringSessionPage() {
                 <div className="card overflow-hidden">
                   <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden relative">
                     {localStreamRef.current ? (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
+                      <>
+                        <video
+                          ref={localVideoRef}
+                          autoPlay
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                          style={{ display: isVideoOff ? 'none' : 'block' }}
+                          onLoadedMetadata={() => {
+                            localVideoRef.current?.play().catch(console.error);
+                          }}
+                        />
+                        {isVideoOff && (
+                          <div className="w-full h-full flex items-center justify-center absolute inset-0">
+                            <div className="text-center">
+                              <VideoCameraSlashIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-400">Camera off</p>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <div className="text-center">
                           <VideoCameraSlashIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-400">Camera off</p>
+                          <p className="text-gray-400">Click camera button to start</p>
                         </div>
                       </div>
                     )}
@@ -893,25 +931,36 @@ export default function TutoringSessionPage() {
                         <button
                           onClick={async () => {
                             try {
-                              if (!localStreamRef.current) {
-                                // No stream yet - request with video enabled, keep current audio state
-                                const stream = await getLocalStream(true, !isMuted);
-                                setIsVideoOff(false);
-                                const audioTrack = stream.getAudioTracks()[0];
-                                setIsMuted(!(audioTrack?.enabled ?? false));
-                              } else {
-                                // Toggle existing video track
-                                const videoTrack = localStreamRef.current.getVideoTracks()[0];
-                                if (videoTrack) {
-                                  videoTrack.enabled = !videoTrack.enabled;
-                                  setIsVideoOff(!videoTrack.enabled);
-                                }
-                              }
-                            } catch (error) {
-                              console.error('Failed to toggle video:', error);
+                              const newVideoState = !isVideoOff;
+                              const currentAudioState = !isMuted;
+                              
+                              console.log('🎥 Toggling camera:', { 
+                                current: isVideoOff, 
+                                new: newVideoState,
+                                hasStream: !!localStreamRef.current
+                              });
+                              
+                              await getLocalStream(newVideoState, currentAudioState);
+                              
+                              addToast({ 
+                                title: newVideoState ? 'Camera On' : 'Camera Off', 
+                                description: newVideoState ? 'Your camera is now visible' : 'Your camera is now hidden',
+                                type: 'success' 
+                              });
+                            } catch (error: any) {
+                              console.error('❌ Failed to toggle video:', error);
+                              addToast({ 
+                                title: 'Camera Error', 
+                                description: error.message || 'Failed to toggle camera. Please check permissions.',
+                                type: 'error' 
+                              });
                             }
                           }}
-                          className={`p-3 rounded-full ${isVideoOff ? 'bg-red-600' : 'bg-gray-700'} text-white hover:opacity-80 transition-all`}
+                          className={`p-3 rounded-full transition-all min-w-[44px] min-h-[44px] ${
+                            isVideoOff 
+                              ? 'bg-red-600 hover:bg-red-700 text-white' 
+                              : 'bg-gray-700 hover:bg-gray-600 text-white'
+                          }`}
                           aria-label={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
                         >
                           {isVideoOff ? <VideoCameraSlashIcon className="h-5 w-5" /> : <VideoCameraIcon className="h-5 w-5" />}
@@ -919,25 +968,36 @@ export default function TutoringSessionPage() {
                         <button
                           onClick={async () => {
                             try {
-                              if (!localStreamRef.current) {
-                                // No stream yet - request with audio enabled, keep current video state
-                                const stream = await getLocalStream(!isVideoOff, true);
-                                setIsMuted(false);
-                                const videoTrack = stream.getVideoTracks()[0];
-                                setIsVideoOff(!(videoTrack?.enabled ?? false));
-                              } else {
-                                // Toggle existing audio track
-                                const audioTrack = localStreamRef.current.getAudioTracks()[0];
-                                if (audioTrack) {
-                                  audioTrack.enabled = !audioTrack.enabled;
-                                  setIsMuted(!audioTrack.enabled);
-                                }
-                              }
-                            } catch (error) {
-                              console.error('Failed to toggle audio:', error);
+                              const currentVideoState = !isVideoOff;
+                              const newAudioState = !isMuted;
+                              
+                              console.log('🎤 Toggling microphone:', { 
+                                current: isMuted, 
+                                new: newAudioState,
+                                hasStream: !!localStreamRef.current
+                              });
+                              
+                              await getLocalStream(currentVideoState, newAudioState);
+                              
+                              addToast({ 
+                                title: newAudioState ? 'Microphone On' : 'Microphone Off', 
+                                description: newAudioState ? 'Your microphone is now active' : 'Your microphone is now muted',
+                                type: 'success' 
+                              });
+                            } catch (error: any) {
+                              console.error('❌ Failed to toggle audio:', error);
+                              addToast({ 
+                                title: 'Microphone Error', 
+                                description: error.message || 'Failed to toggle microphone. Please check permissions.',
+                                type: 'error' 
+                              });
                             }
                           }}
-                          className={`p-3 rounded-full ${isMuted ? 'bg-red-600' : 'bg-gray-700'} text-white hover:opacity-80 transition-all`}
+                          className={`p-3 rounded-full transition-all min-w-[44px] min-h-[44px] ${
+                            isMuted 
+                              ? 'bg-red-600 hover:bg-red-700 text-white' 
+                              : 'bg-gray-700 hover:bg-gray-600 text-white'
+                          }`}
                           aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
                         >
                           {isMuted ? (
@@ -1089,27 +1149,38 @@ export default function TutoringSessionPage() {
             <div className="lg:col-span-2 space-y-4 md:space-y-6">
               <div className="card overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
-                  {/* Local Video */}
-                  <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
-                    {localStreamRef.current && !isVideoOff ? (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover"
-                        onLoadedMetadata={() => {
-                          localVideoRef.current?.play().catch(console.error);
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-center">
-                          <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                          <p className="text-xs text-gray-400">Camera off</p>
-                        </div>
-                      </div>
-                    )}
+                          {/* Local Video */}
+                          <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden shadow-xl relative">
+                            {localStreamRef.current ? (
+                              <>
+                                <video
+                                  ref={localVideoRef}
+                                  autoPlay
+                                  muted
+                                  playsInline
+                                  className="w-full h-full object-cover"
+                                  style={{ display: isVideoOff ? 'none' : 'block' }}
+                                  onLoadedMetadata={() => {
+                                    localVideoRef.current?.play().catch(console.error);
+                                  }}
+                                />
+                                {isVideoOff && (
+                                  <div className="w-full h-full flex items-center justify-center absolute inset-0">
+                                    <div className="text-center">
+                                      <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                      <p className="text-xs text-gray-400">Camera off</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <div className="text-center">
+                                  <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                  <p className="text-xs text-gray-400">Camera not started</p>
+                                </div>
+                              </div>
+                            )}
                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
                       You {isMuted && '(Muted)'} {isVideoOff && '(Camera Off)'}
                     </div>
