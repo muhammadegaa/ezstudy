@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Clock, Download, Trash2, FileText } from 'lucide-react';
-import Tooltip from '@/components/Onboarding/Tooltip';
 import type { Session } from '@/types';
 import { renderTranslationWithGlossary } from '@/lib/utils';
 
@@ -108,34 +107,20 @@ export default function SessionHistory({
                   </div>
                 </div>
                 <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                  <Tooltip
-                    id={`export-session-${session.id}`}
-                    content="Export this session as a text file. You can download it for offline study or sharing."
-                    position="left"
-                    delay={1500}
+                  <button
+                    onClick={() => exportSession(session)}
+                    className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all min-w-[44px] min-h-[44px]"
+                    aria-label="Export session"
                   >
-                    <button
-                      onClick={() => exportSession(session)}
-                      className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all min-w-[44px] min-h-[44px]"
-                      aria-label="Export session"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
-                  </Tooltip>
-                  <Tooltip
-                    id={`delete-session-${session.id}`}
-                    content="Delete this session permanently. This action cannot be undone."
-                    position="left"
-                    delay={1500}
+                    <Download className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => deleteSession(session.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all min-w-[44px] min-h-[44px]"
+                    aria-label="Delete session"
                   >
-                    <button
-                      onClick={() => deleteSession(session.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all min-w-[44px] min-h-[44px]"
-                      aria-label="Delete session"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </Tooltip>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
 

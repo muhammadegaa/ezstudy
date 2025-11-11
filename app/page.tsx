@@ -13,7 +13,6 @@ import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import MobileNav from '@/components/Navigation/MobileNav';
 import WelcomeModal from '@/components/Onboarding/WelcomeModal';
-import Tooltip from '@/components/Onboarding/Tooltip';
 import type { Language, Session, Translation } from '@/types';
 
 // Lazy load LiveLearningAssistant (heavy component)
@@ -115,20 +114,13 @@ export default function Home() {
               
                       {/* Desktop Navigation */}
                       <div className="hidden lg:flex items-center gap-3">
-                        <Tooltip
-                          id="find-tutors-header"
-                          content="Browse and book tutoring sessions with expert tutors. Sessions include video calls with real-time translation and learning assistance."
-                          position="bottom"
-                          delay={2000}
+                        <Link
+                          href="/tutoring"
+                          className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
                         >
-                          <Link
-                            href="/tutoring"
-                            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-semibold text-sm"
-                          >
-                            <Video className="h-4 w-4" />
-                            Find Tutors
-                          </Link>
-                        </Tooltip>
+                          <Video className="h-4 w-4" />
+                          Find Tutors
+                        </Link>
                 {user ? (
                 <div className="flex items-center gap-3">
                   <Link

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Mic, MicOff, Loader2, BookOpen, Save, Download, Sparkles, Copy, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
-import Tooltip from '@/components/Onboarding/Tooltip';
 import type { Language } from '@/types';
 
 interface Concept {
@@ -668,39 +667,32 @@ export default function LiveLearningAssistant({
               </div>
             </div>
             
-            <Tooltip
-              id="start-listening"
-              content="Click to start real-time speech recognition. The system will translate your speech instantly as you speak, and show visual aids for complex concepts."
-              position="bottom"
-              delay={2000}
+            <button
+              onClick={handleToggle}
+              disabled={isRequestingPermission || isSupported === false}
+              className={`px-6 py-3 h-11 min-h-[44px] rounded-xl font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                isActive
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-primary-600 text-white hover:bg-primary-700'
+              } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
             >
-              <button
-                onClick={handleToggle}
-                disabled={isRequestingPermission || isSupported === false}
-                className={`px-6 py-3 h-11 min-h-[44px] rounded-xl font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 ${
-                  isActive
-                    ? 'bg-red-500 text-white hover:bg-red-600'
-                    : 'bg-primary-600 text-white hover:bg-primary-700'
-                } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
-              >
-                {isRequestingPermission ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : isActive ? (
-                  <>
-                    <MicOff className="h-4 w-4" />
-                    Stop Listening
-                  </>
-                ) : (
-                  <>
-                    <Mic className="h-4 w-4" />
-                    Start Listening
-                  </>
-                )}
-              </button>
-            </Tooltip>
+              {isRequestingPermission ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Starting...
+                </>
+              ) : isActive ? (
+                <>
+                  <MicOff className="h-4 w-4" />
+                  Stop Listening
+                </>
+              ) : (
+                <>
+                  <Mic className="h-4 w-4" />
+                  Start Listening
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -894,20 +886,13 @@ export default function LiveLearningAssistant({
             className="input resize-none"
             rows={4}
           />
-          <Tooltip
-            id="save-note"
-            content="Save your current notes along with the translation and detected concepts. You can enhance notes later with AI for better formatting and summaries."
-            position="top"
-            delay={2000}
+          <button
+            onClick={addNote}
+            className="w-full px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-[1.02]"
           >
-            <button
-              onClick={addNote}
-              className="w-full px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-[1.02]"
-            >
-              <Save className="h-4 w-4" />
-              Save Note
-            </button>
-          </Tooltip>
+            <Save className="h-4 w-4" />
+            Save Note
+          </button>
         </div>
 
         {notes.length > 0 && (
@@ -925,30 +910,23 @@ export default function LiveLearningAssistant({
                     </span>
                   </div>
                   {!note.enhanced && (
-                    <Tooltip
-                      id={`enhance-note-${note.id}`}
-                      content="Use AI to automatically format and enhance your note with summaries, key concepts, and structured sections for better study."
-                      position="left"
-                      delay={1500}
+                    <button
+                      onClick={() => enhanceNoteWithAI(note.id)}
+                      disabled={isEnhancingNote && enhancingNoteId === note.id}
+                      className="px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-purple-200 shadow-sm hover:shadow-md"
                     >
-                      <button
-                        onClick={() => enhanceNoteWithAI(note.id)}
-                        disabled={isEnhancingNote && enhancingNoteId === note.id}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 rounded-lg hover:from-purple-100 hover:to-pink-100 transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed border border-purple-200 shadow-sm hover:shadow-md"
-                      >
-                        {isEnhancingNote && enhancingNoteId === note.id ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Enhancing...
-                          </>
-                        ) : (
-                          <>
-                            <Wand2 className="h-3 w-3" />
-                            Enhance with AI
-                          </>
-                        )}
-                      </button>
-                    </Tooltip>
+                      {isEnhancingNote && enhancingNoteId === note.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Enhancing...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-3 w-3" />
+                          Enhance with AI
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
                 {note.enhanced ? (
