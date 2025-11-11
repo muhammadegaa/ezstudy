@@ -800,23 +800,41 @@ export default function TutoringSessionPage() {
     }
   };
 
-  const toggleMute = () => {
+  const toggleMute = async () => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
       audioTracks.forEach(track => {
         track.enabled = !track.enabled;
       });
-      setIsMuted(!isMuted);
+      const newMutedState = !audioTracks[0]?.enabled ?? true;
+      setIsMuted(newMutedState);
+      console.log('🎤 Toggle mute:', newMutedState);
+    } else {
+      // No stream - request one with audio enabled
+      try {
+        await getLocalStream(!isVideoOff, !isMuted);
+      } catch (error) {
+        console.error('Failed to get stream for mic:', error);
+      }
     }
   };
 
-  const toggleVideo = () => {
+  const toggleVideo = async () => {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
       videoTracks.forEach(track => {
         track.enabled = !track.enabled;
       });
-      setIsVideoOff(!isVideoOff);
+      const newVideoOffState = !videoTracks[0]?.enabled ?? true;
+      setIsVideoOff(newVideoOffState);
+      console.log('🎥 Toggle video:', newVideoOffState);
+    } else {
+      // No stream - request one with video enabled
+      try {
+        await getLocalStream(!isVideoOff, !isMuted);
+      } catch (error) {
+        console.error('Failed to get stream for camera:', error);
+      }
     }
   };
 
