@@ -673,76 +673,93 @@ export default function TutoringSessionPage() {
                 <VideoCameraIcon className="h-10 w-10 text-white" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                {isTutorSession ? 'Tutor Session' : 'Start Video Session'}
+                {isTutorSession ? 'Session Ready!' : 'Start Video Session'}
               </h2>
               <p className="text-gray-600">
                 {isTutorSession 
-                  ? 'Share your Peer ID with students to start teaching'
+                  ? 'Copy the link below and share it with your student. They will join automatically.'
                   : `Connect with ${tutor.name} for personalized learning`}
               </p>
             </div>
             
             <div className="space-y-6">
-              {/* Shareable Link (for tutors) */}
+              {/* Shareable Link (for tutors) - SIMPLIFIED */}
               {isTutorSession && actualSessionId && (
-                <div className="p-4 bg-primary-50 border-2 border-primary-200 rounded-xl">
-                  <label className="block text-sm font-bold text-primary-900 mb-2">
-                    Share this link with students:
-                  </label>
-                  <div className="flex gap-2">
+                <div className="p-6 bg-gradient-to-br from-primary-50 to-primary-100 border-2 border-primary-300 rounded-2xl shadow-lg">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
+                      <ClipboardDocumentIcon className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-primary-900">Share This Link</h3>
+                      <p className="text-sm text-primary-700">Copy and send to your student</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mb-3">
                     <input
                       type="text"
                       value={`${typeof window !== 'undefined' ? window.location.origin : ''}/tutoring/session/${actualSessionId}`}
                       readOnly
-                      className="flex-1 px-4 py-3 border border-primary-300 rounded-xl bg-white text-gray-900 font-mono text-sm"
+                      className="flex-1 px-4 py-3 border-2 border-primary-300 rounded-xl bg-white text-gray-900 font-mono text-sm font-semibold"
                     />
                     <button
                       onClick={() => {
                         const link = `${window.location.origin}/tutoring/session/${actualSessionId}`;
                         navigator.clipboard.writeText(link).then(() => {
-                          addToast({ title: 'Copied!', description: 'Link copied to clipboard', type: 'success' });
+                          addToast({ title: 'Link Copied!', description: 'Share this link with your student', type: 'success' });
                         });
                       }}
-                      className="px-5 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold shadow-sm"
-                      aria-label="Copy link"
+                      className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-bold shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2"
+                    >
+                      <ClipboardDocumentIcon className="h-5 w-5" />
+                      Copy
+                    </button>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-primary-200">
+                    <p className="text-sm text-primary-800 font-medium">
+                      ✅ Student clicks link → Auto-joins → Video call starts automatically
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Status for tutors */}
+              {isTutorSession && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                    <p className="text-sm text-blue-900 font-medium">
+                      Waiting for student to join... Your Peer ID: <span className="font-mono text-xs">{myId || 'Loading...'}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Your Peer ID (for students) */}
+              {!isTutorSession && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Your Peer ID (share with {tutor.name}):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={myId}
+                      readOnly
+                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 font-mono text-sm"
+                      placeholder={isInitializing ? 'Initializing...' : 'Your Peer ID will appear here'}
+                    />
+                    <button
+                      onClick={copyPeerId}
+                      disabled={!myId}
+                      className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Copy Peer ID"
                     >
                       <ClipboardDocumentIcon className="h-5 w-5" />
                     </button>
                   </div>
-                  <p className="text-xs text-primary-700 mt-2 font-medium">
-                    Students can click this link to join automatically
-                  </p>
                 </div>
               )}
-
-              {/* Your Peer ID */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Your Peer ID {isTutorSession ? '(waiting for student...)' : `(share this with ${tutor.name})`}:
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={myId}
-                    readOnly
-                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 font-mono text-sm"
-                    placeholder={isInitializing ? 'Initializing...' : 'Your Peer ID will appear here'}
-                  />
-                  <button
-                    onClick={copyPeerId}
-                    disabled={!myId}
-                    className="px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Copy Peer ID"
-                  >
-                    <ClipboardDocumentIcon className="h-5 w-5" />
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  {isTutorSession 
-                    ? 'Once a student joins via the link above, they will connect automatically'
-                    : 'Share your Peer ID with the tutor'}
-                </p>
-              </div>
 
               {/* Enter Peer ID to Connect (manual fallback) */}
               {!isTutorSession && (
