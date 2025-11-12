@@ -73,6 +73,12 @@ export default function TutoringSessionPage() {
   const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
   const [sourceLang, setSourceLang] = useState<Language>('en');
   const [targetLang, setTargetLang] = useState<Language>('en');
+
+  const peerHost = process.env.NEXT_PUBLIC_PEER_HOST || '0.peerjs.com';
+  const peerPort = process.env.NEXT_PUBLIC_PEER_PORT ? Number(process.env.NEXT_PUBLIC_PEER_PORT) : 443;
+  const peerPath = process.env.NEXT_PUBLIC_PEER_PATH || '/peerjs';
+  const peerSecure = process.env.NEXT_PUBLIC_PEER_SECURE !== 'false';
+  const peerKey = process.env.NEXT_PUBLIC_PEER_KEY;
   
   const peerRef = useRef<any>(null);
   const sessionRef = useRef<FirestoreSession | null>(null);
@@ -410,6 +416,11 @@ export default function TutoringSessionPage() {
         // Create peer with explicit configuration
         const peer = new Peer({
           debug: 2, // Enable debug logging
+          host: peerHost,
+          port: peerPort,
+          path: peerPath,
+          secure: peerSecure,
+          key: peerKey || undefined,
           config: {
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },

@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "verify-wcag": "node --loader ts-node/esm scripts/verify-wcag.ts || echo 'Install ts-node: npm install -D ts-node'"
+    "verify-wcag": "node --loader ts-node/esm scripts/verify-wcag.ts || echo 'Install ts-node: npm install -D ts-node'",
+    "peer:server": "node server/peer-server.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -23,6 +24,7 @@
     "lucide-react": "^0.294.0",
     "next": "^14.0.4",
     "openai": "^4.20.1",
+    "peer": "^1.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.66.0",

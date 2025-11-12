@@ -22,7 +22,7 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 
 - Next.js 14+ with React and TypeScript
 - **Firebase** - Authentication (Email/Password) & Firestore Database
-- PeerJS (WebRTC) for free video conferencing - no paid services required!
+- PeerJS (WebRTC) for free video conferencing (self-hosted signalling server optional)
 - Tailwind CSS for styling
 - Web Speech API for voice support
 - OpenRouter API (optional) for AI concept detection
@@ -32,10 +32,11 @@ Academic Live Translation & Learning Companion for Chinese and Indonesian studen
 This app uses Firebase for authentication and data storage. See [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) for complete setup instructions.
 
 **Quick Setup:**
-1. Copy `.env.example` to `.env.local`
+1. Copy `env.example` to `.env.local`
 2. Add your Firebase config (see FIREBASE_SETUP.md)
-3. Enable Email/Password auth in Firebase Console
-4. Deploy Firestore rules from `firestore.rules`
+3. Optionally configure PeerJS host variables (see “PeerJS Signalling Server” below)
+4. Enable Email/Password auth in Firebase Console
+5. Deploy Firestore rules from `firestore.rules`
 
 ## Getting Started
 
@@ -44,25 +45,30 @@ This app uses Firebase for authentication and data storage. See [FIREBASE_SETUP.
 npm install
 ```
 
-2. Set up environment variables (OPTIONAL):
+2. Set up environment variables:
 ```bash
-cp .env.example .env
+cp env.example .env.local
 ```
 
-Edit `.env` (all optional - app works without any API keys!):
+Edit `.env.local` with your Firebase credentials and signalling host (defaults work for local development):
 ```
-# Optional: Giphy API key (free tier works without it)
-GIPHY_API_KEY=dc6zaTOxFJmzC
+# Firebase config
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+...
 
-# Optional: App URL (auto-detected)
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+# Optional: PeerJS host (defaults to the public peer server)
+NEXT_PUBLIC_PEER_HOST=0.peerjs.com
+NEXT_PUBLIC_PEER_PORT=443
+NEXT_PUBLIC_PEER_PATH=/peerjs
+NEXT_PUBLIC_PEER_SECURE=true
 ```
 
-**No API keys required!** The app uses:
+**No paid APIs required!** The app uses:
 - LibreTranslate (free, open-source) for translation
 - Free pattern matching for concept extraction
 - Free Giphy public beta key for GIFs
-- Free PeerJS WebRTC for video conferencing
+- PeerJS WebRTC for video conferencing (self-hosted server recommended for production)
 
 3. Run the development server:
 ```bash
@@ -180,10 +186,33 @@ The app works completely without any API keys! All services are free:
 - **Video Conferencing**: Free PeerJS WebRTC
 
 Optional environment variables:
-- `GIPHY_API_KEY` - Optional, free tier works without it
 - `NEXT_PUBLIC_APP_URL` - Auto-detected, optional to set manually
+- `NEXT_PUBLIC_PEER_HOST` / `NEXT_PUBLIC_PEER_PORT` / `NEXT_PUBLIC_PEER_PATH` / `NEXT_PUBLIC_PEER_SECURE` / `NEXT_PUBLIC_PEER_KEY` - set if you host your own PeerJS server
+- `GIPHY_API_KEY` - Optional, free tier works without it
 
 **100% FREE - No paid services required!**
+
+## PeerJS Signalling Server (Optional but Recommended)
+
+For reliable video calls in production you should run your own PeerJS signalling server instead of relying on the public demo instance.
+
+1. Install dependencies (already covered by `npm install`)
+2. Start the signalling server locally:
+   ```bash
+   npm run peer:server
+   ```
+   By default the server listens on `http://0.0.0.0:9000/peerjs`. Use environment variables `PORT`, `HOST`, `PEER_PATH`, and `KEY` to customise or secure it.
+3. Deploy `server/peer-server.js` to your preferred Node host (Render, Railway, Fly.io, etc.)
+4. Update `.env.local` (and Vercel environment variables) with your deployed host:
+   ```
+   NEXT_PUBLIC_PEER_HOST=your-peer-host.com
+   NEXT_PUBLIC_PEER_PORT=443
+   NEXT_PUBLIC_PEER_PATH=/peerjs
+   NEXT_PUBLIC_PEER_SECURE=true
+   # NEXT_PUBLIC_PEER_KEY=optional_if_you_configured_one
+   ```
+5. Redeploy the Next.js app. All clients will now use your dedicated signalling server.
+
 
 ## Project Structure
 
