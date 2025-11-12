@@ -982,27 +982,27 @@ export default function TutoringSessionPage() {
                     )}
                     <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                       <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const newVideoState = !isVideoOff;
-                              const currentAudioState = !isMuted;
-                              
-                              console.log('🎥 Camera button clicked:', { 
-                                currentVideoOff: isVideoOff,
-                                newVideoState,
-                                currentAudioState,
-                                hasStream: !!localStreamRef.current
-                              });
-                              
-                              await getLocalStream(newVideoState, currentAudioState);
-                              
-                              // State is updated inside getLocalStream, but ensure UI reflects it
-                              console.log('✅ Camera toggle complete');
-                            } catch (error: any) {
-                              console.error('❌ Camera toggle failed:', error);
-                            }
-                          }}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const desiredVideoEnabled = isVideoOff;
+                            const currentAudioEnabled = !isMuted;
+                            
+                            console.log('🎥 Camera button clicked:', { 
+                              currentVideoOff: isVideoOff,
+                              desiredVideoEnabled,
+                              currentAudioEnabled,
+                              hasStream: !!localStreamRef.current
+                            });
+                            
+                            await getLocalStream(desiredVideoEnabled, currentAudioEnabled);
+                            
+                            // State is updated inside getLocalStream, but ensure UI reflects it
+                            console.log('✅ Camera toggle complete');
+                          } catch (error: any) {
+                            console.error('❌ Camera toggle failed:', error);
+                          }
+                        }}
                           className={`p-3 rounded-full transition-all min-w-[44px] min-h-[44px] ${
                             isVideoOff 
                               ? 'bg-red-600 hover:bg-red-700 text-white' 
@@ -1015,17 +1015,17 @@ export default function TutoringSessionPage() {
                         <button
                           onClick={async () => {
                             try {
-                              const currentVideoState = !isVideoOff;
-                              const newAudioState = !isMuted;
+                              const currentVideoEnabled = !isVideoOff;
+                              const desiredAudioEnabled = isMuted;
                               
                               console.log('🎤 Microphone button clicked:', { 
                                 currentMuted: isMuted,
-                                newAudioState,
-                                currentVideoState,
+                                desiredAudioEnabled,
+                                currentVideoEnabled,
                                 hasStream: !!localStreamRef.current
                               });
                               
-                              await getLocalStream(currentVideoState, newAudioState);
+                              await getLocalStream(currentVideoEnabled, desiredAudioEnabled);
                               
                               // State is updated inside getLocalStream
                               console.log('✅ Microphone toggle complete');
