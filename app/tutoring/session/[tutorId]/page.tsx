@@ -76,6 +76,7 @@ export default function TutoringSessionPage() {
   
   const peerRef = useRef<any>(null);
   const sessionRef = useRef<FirestoreSession | null>(null);
+  const hasJoinedSessionRef = useRef<boolean>(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -248,7 +249,52 @@ export default function TutoringSessionPage() {
   // Keep latest session in ref for callbacks
   useEffect(() => {
     sessionRef.current = session;
-  }, [session]);
+    if (session && !isTutorSession && user) {
+      if (session.studentId === user.uid) {
+        hasJoinedSessionRef.current = true;
+      }
+    }
+  }, [session, isTutorSession, user]);
+  // Ensure student claims session when joining via share link
+  useEffect(() => {
+    if (isTutorSession) return;
+    if (!session || !user) return;
+    if (session.studentId && session.studentId !== '' && session.studentId !== user.uid) return;
+    if (hasJoinedSessionRef.current && session.studentId === user.uid) return;
+
+    const joinSession = async () => {
+      try {
+        const displayName =
+          user.displayName ||
+          user.email?.split('@')[0] ||
+          'Student';
+
+        await updateSession(session.id, {
+          studentId: user.uid,
+          studentName: displayName,
+          studentEmail: user.email || '',
+        });
+
+        hasJoinedSessionRef.current = true;
+        setSession(prev => prev ? {
+          ...prev,
+          studentId: user.uid,
+          studentName: displayName,
+          studentEmail: user.email || '',
+        } : prev);
+      } catch (error: any) {
+        console.error('Error claiming session as student:', error);
+        addToast({
+          title: 'Join Error',
+          description: error.message || 'Failed to join the session. Please refresh the page.',
+          type: 'error',
+        });
+      }
+    };
+
+    joinSession();
+  }, [session, isTutorSession, user, addToast]);
+
 
   // Listen for real-time session updates (peerId, status, etc.)
   useEffect(() => {
