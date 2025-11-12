@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, Download, Trash2, FileText } from 'lucide-react';
+import { Clock, Download, Trash2, FileText, ChevronDown } from 'lucide-react';
 import type { Session } from '@/types';
 import { renderTranslationWithGlossary } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ export default function SessionHistory({
   onSelectSession,
 }: SessionHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(true);
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
@@ -56,7 +57,7 @@ export default function SessionHistory({
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
             <Clock className="h-5 w-5 text-gray-700" />
@@ -66,9 +67,23 @@ export default function SessionHistory({
             <p className="text-xs text-gray-500">{sessions.length} saved</p>
           </div>
         </div>
+        <button
+          onClick={() => setIsOpen((prev) => !prev)}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-all"
+          aria-expanded={isOpen}
+          aria-label={isOpen ? 'Collapse session history' : 'Expand session history'}
+        >
+          <ChevronDown
+            className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
       </div>
 
-      {sessions.length === 0 ? (
+      {!isOpen ? (
+        <div className="text-xs text-gray-500 italic">
+          Session history collapsed. Click the arrow to expand.
+        </div>
+      ) : sessions.length === 0 ? (
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <FileText className="h-8 w-8 text-gray-400" />
@@ -77,7 +92,7 @@ export default function SessionHistory({
           <p className="text-xs text-gray-400 mt-1">Your translation sessions will appear here</p>
         </div>
       ) : (
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {sessions.map((session) => (
             <div
               key={session.id}
@@ -102,7 +117,8 @@ export default function SessionHistory({
                       {formatDate(session.timestamp)}
                     </span>
                     <span className="px-2 py-0.5 bg-gray-100 rounded-md font-medium">
-                      {session.translations.length} {session.translations.length === 1 ? 'translation' : 'translations'}
+                      {session.translations.length}{' '}
+                      {session.translations.length === 1 ? 'translation' : 'translations'}
                     </span>
                   </div>
                 </div>
