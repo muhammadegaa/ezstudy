@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { VideoCameraIcon, VideoCameraSlashIcon, MicrophoneIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import Button from '@/components/ui/Button';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 interface MediaPreviewProps {
   onJoin: (stream: MediaStream, videoEnabled: boolean, audioEnabled: boolean) => void;
@@ -16,6 +15,8 @@ export default function MediaPreview({ onJoin, onCancel }: MediaPreviewProps) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<'unknown' | 'prompt' | 'granted' | 'denied'>('unknown');
+  const [showPermissionHelp, setShowPermissionHelp] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -27,9 +28,61 @@ export default function MediaPreview({ onJoin, onCancel }: MediaPreviewProps) {
     };
   }, [stream]);
 
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.permissions) return;
+
+    let cancelled = false;
+    let cameraStatus: PermissionStatus | null = null;
+    let microphoneStatus: PermissionStatus | null = null;
+
+    const updateStatus = () => {
+      if (cancelled) return;
+      const states = [cameraStatus?.state, microphoneStatus?.state];
+      if (states.includes('denied')) {
+        setPermissionStatus('denied');
+      } else if (states.every(state => state === 'granted')) {
+        setPermissionStatus('granted');
+      } else if (states.some(state => state === 'prompt')) {
+        setPermissionStatus('prompt');
+      } else {
+        setPermissionStatus('unknown');
+      }
+    };
+
+    const watchPermissions = async () => {
+      try {
+        const results = await Promise.all([
+          navigator.permissions.query({ name: 'camera' as PermissionName }),
+          navigator.permissions.query({ name: 'microphone' as PermissionName }),
+        ]);
+
+        cameraStatus = results[0];
+        microphoneStatus = results[1];
+
+        const handleChange = () => updateStatus();
+        cameraStatus.onchange = handleChange;
+        microphoneStatus.onchange = handleChange;
+
+        updateStatus();
+      } catch (err) {
+        console.warn('Unable to query media permissions:', err);
+        setPermissionStatus('unknown');
+      }
+    };
+
+    watchPermissions();
+
+    return () => {
+      cancelled = true;
+      if (cameraStatus) cameraStatus.onchange = null;
+      if (microphoneStatus) microphoneStatus.onchange = null;
+    };
+  }, []);
+
   const requestMedia = async () => {
     setIsRequesting(true);
     setError(null);
+    setShowPermissionHelp(false);
 
     try {
       // Request both video and audio, but we'll control them separately
@@ -49,6 +102,7 @@ export default function MediaPreview({ onJoin, onCancel }: MediaPreviewProps) {
       
       setVideoEnabled(videoTrack?.enabled ?? false);
       setAudioEnabled(audioTrack?.enabled ?? false);
+      setPermissionStatus('granted');
 
       // Display preview
       if (videoRef.current && videoTrack) {
@@ -59,10 +113,14 @@ export default function MediaPreview({ onJoin, onCancel }: MediaPreviewProps) {
       console.error('Error requesting media:', err);
       if (err.name === 'NotAllowedError') {
         setError('Camera and microphone access denied. Please allow access in your browser settings and try again.');
+        setPermissionStatus('denied');
+        setShowPermissionHelp(true);
       } else if (err.name === 'NotFoundError') {
         setError('No camera or microphone found. Please connect a device and try again.');
+        setPermissionStatus('unknown');
       } else {
         setError(`Failed to access camera/microphone: ${err.message}`);
+        setPermissionStatus('unknown');
       }
     } finally {
       setIsRequesting(false);
@@ -116,8 +174,21 @@ export default function MediaPreview({ onJoin, onCancel }: MediaPreviewProps) {
         {/* Content */}
         <div className="p-6">
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
               <p className="text-sm text-red-800 font-medium">{error}</p>
+              {(permissionStatus === 'denied' || showPermissionHelp) && (
+                <div className="bg-red-100/60 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  <p className="font-semibold mb-2">How to re-enable camera &amp; microphone:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Click the lock icon in your browser&apos;s address bar.</li>
+                    <li>Set both <span className="font-semibold">Camera</span> and <span className="font-semibold">Microphone</span> to <span className="font-semibold">Allow</span>.</li>
+                    <li>Refresh this page, then click &quot;Enable Camera &amp; Microphone&quot; again.</li>
+                  </ul>
+                  <p className="mt-2 text-xs text-red-600">
+                    Tip: If you use Safari, open Preferences → Websites → Camera/Microphone and allow access for this site.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
