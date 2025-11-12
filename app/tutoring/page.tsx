@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, User, GraduationCap, Star, Video, ArrowRight, Sparkles, Globe, Calendar, Clock, Users as UsersIcon, Settings, Plus, Loader2 } from 'lucide-react';
+import { Search, User, GraduationCap, Star, Video, ArrowRight, Sparkles, Globe, Calendar, Clock, Users as UsersIcon, Settings, Plus, Loader2, Clipboard } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { getTutors, getTutorByUserId, createOrUpdateTutor, type Tutor as FirestoreTutor } from '@/lib/firebase/firestore';
@@ -478,71 +478,139 @@ export default function TutoringPage() {
                   <Loader2 className="h-12 w-12 animate-spin text-primary-600 mx-auto mb-4" />
                   <p className="text-gray-600">Loading sessions...</p>
                 </div>
-              ) : tutorSessions.length > 0 ? (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-gray-900">Your Sessions</h3>
-                  {tutorSessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="card card-hover"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-                            <Video className="h-6 w-6 text-primary-600" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">
-                              {session.studentName === 'Waiting for student...' ? 'Waiting for student...' : `Session with ${session.studentName}`}
-                            </h4>
-                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-4 w-4" />
-                                {session.status === 'pending' ? 'Pending' : session.status === 'active' ? 'Active' : 'Completed'}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <UsersIcon className="h-4 w-4" />
-                                {session.subject}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          {session.status === 'pending' && (
-                            <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full">
-                              Waiting
-                            </span>
-                          )}
-                          {session.status === 'active' && (
-                            <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                              Active
-                            </span>
-                          )}
-                          <button
-                            onClick={() => joinSessionAsTutor(session.id)}
-                            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 shadow-md hover:shadow-lg"
-                          >
-                            <Video className="h-4 w-4" />
-                            {session.status === 'pending' ? 'Start' : 'Join'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               ) : (
-                <div className="card text-center py-12">
-                  <Video className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">No Sessions Yet</h3>
-                  <p className="text-gray-600 mb-6">Create your first tutoring session to get started</p>
-                  <button
-                    onClick={createTutorSession}
-                    className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Create Session
-                  </button>
-                </div>
+                (() => {
+                  const waitingSessions = tutorSessions.filter(
+                    (session) => session.status === 'pending' || session.status === 'active'
+                  );
+                  const completedSessions = tutorSessions.filter(
+                    (session) => session.status === 'completed' || session.status === 'cancelled'
+                  );
+
+                  if (tutorSessions.length === 0) {
+                    return (
+                      <div className="card text-center py-12">
+                        <Video className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">No Sessions Yet</h3>
+                        <p className="text-gray-600 mb-6">Create your first tutoring session to get started</p>
+                        <button
+                          onClick={createTutorSession}
+                          className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl"
+                        >
+                          <Plus className="h-5 w-5" />
+                          Create Session
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-8">
+                      {waitingSessions.length > 0 && (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-900">Waiting / In-progress</h3>
+                            <p className="text-sm text-gray-500">
+                              {waitingSessions.length} {waitingSessions.length === 1 ? 'session' : 'sessions'}
+                            </p>
+                          </div>
+                          {waitingSessions.map((session) => (
+                            <div key={session.id} className="card border-primary-100 shadow-sm">
+                              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                <div className="flex items-start gap-4">
+                                  <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                                    <Video className="h-6 w-6 text-primary-600" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-gray-900">
+                                      {session.studentName === 'Waiting for student...'
+                                        ? 'Waiting for student...'
+                                        : `Session with ${session.studentName}`}
+                                    </h4>
+                                    <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-4 w-4" />
+                                        {session.status === 'pending' ? 'Pending' : 'Active'}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <UsersIcon className="h-4 w-4" />
+                                        {session.subject}
+                                      </span>
+                                      <span className="flex items-center gap-1 text-primary-600 font-semibold">
+                                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                        Shareable link ready
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                                  <button
+                                    onClick={() => {
+                                      const link = `${window.location.origin}/tutoring/session/${session.id}`;
+                                      navigator.clipboard.writeText(link).then(() => {
+                                        addToast({
+                                          title: 'Link Copied!',
+                                          description: 'Share this link with your student',
+                                          type: 'success',
+                                        });
+                                      });
+                                    }}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-white text-primary-600 border border-primary-200 rounded-xl hover:bg-primary-50 transition-all font-semibold shadow-sm flex items-center justify-center gap-2"
+                                  >
+                                    <Clipboard className="h-5 w-5" />
+                                    Copy Meeting Link
+                                  </button>
+                                  <button
+                                    onClick={() => joinSessionAsTutor(session.id)}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                                  >
+                                    <Video className="h-4 w-4" />
+                                    Enter Waiting Room
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {completedSessions.length > 0 && (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-900">Recent Sessions</h3>
+                            <p className="text-sm text-gray-500">
+                              {completedSessions.length} completed
+                            </p>
+                          </div>
+                          <div className="space-y-3">
+                            {completedSessions.map((session) => (
+                              <div key={session.id} className="card bg-gray-50/70 border border-gray-200">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <h4 className="font-semibold text-gray-900">
+                                      {session.studentName && session.studentName !== 'Waiting for student...'
+                                        ? `Session with ${session.studentName}`
+                                        : 'Completed session'}
+                                    </h4>
+                                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                      <span>{session.subject}</span>
+                                      {session.scheduledTime && (
+                                        <span>{session.scheduledTime.toLocaleString()}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-semibold rounded-full">
+                                    {session.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
               )}
             </div>
           )}
