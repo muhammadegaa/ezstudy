@@ -75,6 +75,7 @@ export default function TutoringSessionPage() {
   const [targetLang, setTargetLang] = useState<Language>('en');
   
   const peerRef = useRef<any>(null);
+  const sessionRef = useRef<FirestoreSession | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -244,6 +245,11 @@ export default function TutoringSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, actualSessionId, isTutorSession, tutorId, router, addToast]);
 
+  // Keep latest session in ref for callbacks
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
   // Listen for real-time session updates (peerId, status, etc.)
   useEffect(() => {
     if (!actualSessionId) return;
@@ -296,20 +302,15 @@ export default function TutoringSessionPage() {
 
   // Initialize PeerJS on mount - SINGLE INSTANCE ONLY
   useEffect(() => {
-    if (typeof window === 'undefined' || loading || authLoading) return;
+    if (typeof window === 'undefined' || authLoading) return;
+    if (!user) return;
     
     // Prevent multiple initializations
     if (hasInitializedRef.current || isInitializingRef.current) {
       console.log('PeerJS already initialized or initializing, skipping...');
       return;
     }
-    
-    // Cleanup any existing peer before creating new one
-    if (peerRef.current) {
-      console.log('Cleaning up existing peer before re-initialization...');
-      cleanup();
-    }
-
+  
     isInitializingRef.current = true;
     setIsInitializing(true);
 
@@ -379,8 +380,9 @@ export default function TutoringSessionPage() {
           hasInitializedRef.current = true;
           
           // Update session with peerId if session exists (for tutors)
-          if (actualSessionId && session && isTutorSession && !session.peerId) {
-            updateSession(actualSessionId, { peerId: id }).catch(console.error);
+        const currentSession = sessionRef.current;
+        if (actualSessionId && currentSession && isTutorSession && !currentSession.peerId) {
+          updateSession(actualSessionId, { peerId: id }).catch(console.error);
           }
           
           // For tutors: Don't auto-request media - let them enable it manually (like Google Meet)
@@ -535,7 +537,7 @@ export default function TutoringSessionPage() {
       cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, authLoading, actualSessionId, session, cleanup]);
+  }, [authLoading, user, isTutorSession, actualSessionId]);
 
   const handleDataConnection = (conn: any) => {
     dataChannelsRef.current.set(conn.peer, conn);
