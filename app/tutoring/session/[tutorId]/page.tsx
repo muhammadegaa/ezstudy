@@ -971,7 +971,7 @@ export default function TutoringSessionPage() {
                     
                     {/* Overlay when camera is off or no stream */}
                     {(!localStreamRef.current || isVideoOff) && (
-                      <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-900 z-20">
+                      <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-900/95 z-10 pointer-events-none">
                         <div className="text-center">
                           <VideoCameraSlashIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                           <p className="text-gray-400">
@@ -980,7 +980,7 @@ export default function TutoringSessionPage() {
                         </div>
                       </div>
                     )}
-                    <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                    <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-20">
                       <div className="flex gap-2">
                       <button
                         onClick={async () => {
@@ -1217,7 +1217,7 @@ export default function TutoringSessionPage() {
                             
                             {/* Overlay when camera is off or no stream */}
                             {(!localStreamRef.current || isVideoOff) && (
-                              <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-900 z-20">
+                              <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-900/95 z-10 pointer-events-none">
                                 <div className="text-center">
                                   <VideoCameraSlashIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                                   <p className="text-xs text-gray-400">
