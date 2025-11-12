@@ -16,6 +16,8 @@ import {
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import MediaPreview from '@/components/WebRTC/MediaPreview';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
 
 // Lazy load LiveLearningAssistant (heavy component)
 const LiveLearningAssistant = dynamic(() => import('@/components/LiveLearningAssistant'), {
@@ -241,6 +243,40 @@ export default function TutoringSessionPage() {
     loadSessionData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, actualSessionId, isTutorSession, tutorId, router, addToast]);
+
+  // Listen for real-time session updates (peerId, status, etc.)
+  useEffect(() => {
+    if (!actualSessionId) return;
+
+    const sessionRef = doc(db, 'sessions', actualSessionId);
+    const unsubscribe = onSnapshot(
+      sessionRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          return;
+        }
+
+        const data = snapshot.data() as Omit<FirestoreSession, 'id'>;
+        const sessionData: FirestoreSession = {
+          id: snapshot.id,
+          ...data,
+        } as FirestoreSession;
+
+        setSession(sessionData);
+
+        if (!isTutorSession && sessionData.peerId) {
+          setRemotePeerId(sessionData.peerId);
+        }
+      },
+      (error) => {
+        console.error('Error listening to session updates:', error);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [actualSessionId, isTutorSession]);
 
   // Sync video element with stream and state
   useEffect(() => {
@@ -684,6 +720,17 @@ export default function TutoringSessionPage() {
       setIsJoining(false);
     }
   }, [remotePeerId, isTutorSession, addToast, actualSessionId, cleanup]);
+
+  // Auto-start call when student has media ready and tutor peerId becomes available
+  useEffect(() => {
+    if (isTutorSession) return;
+    if (!remotePeerId) return;
+    if (isInCall || isJoining) return;
+    if (!localStreamRef.current) return;
+    if (!peerRef.current || !peerRef.current.open) return;
+
+    startCallWithStream(localStreamRef.current);
+  }, [remotePeerId, isTutorSession, isInCall, isJoining, startCallWithStream]);
 
   const startCall = useCallback(async () => {
     if (!remotePeerId.trim()) {
